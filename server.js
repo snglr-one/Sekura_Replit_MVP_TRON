@@ -14,14 +14,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ---------- Config ----------
+// -------------------- Config --------------------
 const TRONSCAN_BASE = 'https://apilist.tronscanapi.com';
 
-// TronGrid / full node (used for on‑chain contract calls)
+// TronGrid / Full node (for on‑chain contract calls)
 const TRON_API = process.env.TRON_API || 'https://api.trongrid.io';
 const tronHeaders = {};
 if (process.env.TRONGRID_API_KEY) {
-  // TronGrid uses the same header name as TronScan for pro keys
   tronHeaders['TRON-PRO-API-KEY'] = process.env.TRONGRID_API_KEY;
 }
 const tronWeb = new TronWeb({ fullHost: TRON_API, headers: tronHeaders });
@@ -45,12 +44,12 @@ async function tronscanGet(endpoint, params = {}) {
   return res.data;
 }
 
-// ---------- Helpers ----------
+// -------------------- Helpers --------------------
 function looksLikeTronAddress(addr) {
   return typeof addr === 'string' && addr.length >= 26 && addr.length <= 36 && addr.startsWith('T');
 }
 
-// Normalize any boolean-like value coming back as 1 / "1" / "true" / true
+// Normalize any boolean-like value: true/1/'1'/'true'/'yes'
 function isTrue(v) {
   if (v === true) return true;
   if (typeof v === 'number') return v !== 0;
@@ -96,24 +95,26 @@ function normalizeSecurityFlags(sec) {
   return f;
 }
 
-// On‑chain fallback for USDT blacklist via raw constant call
-const USDT_TRON_CONTRACT = 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj'; // TRC20 USDT
+// ---------- Robust on‑chain USDT blacklist check (no ABI needed) ----------
+const USDT_TRON_CONTRACT = 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj'; // USDT (TRC‑20)
+
+// Set a harmless default address so TronWeb can build constant calls
+try { tronWeb.setAddress('TQ5D7rjv3Z5Q3oS8j1gGq2Dq2wZJd2iQ7T'); } catch {}
 
 async function isUSDTBlacklistedOnChain(address) {
   const contractHex = tronWeb.address.toHex(USDT_TRON_CONTRACT);
 
-  // Helper: make a raw read call to a specific signature
+  // Raw constant call for a given signature and single 'address' param
   async function trySig(signature) {
     try {
       const res = await tronWeb.transactionBuilder.triggerSmartContract(
         contractHex,
         signature,          // e.g. 'isBlackListed(address)'
-        {},                 // options
+        { callValue: 0 },
         [{ type: 'address', value: address }]
       );
       const hex = res?.constant_result?.[0];
       if (!hex) return null;
-      // decode bool from returned 32‑byte word
       const [val] = tronWeb.utils.abi.decodeParams(['bool'], '0x' + hex);
       return !!val;
     } catch {
@@ -121,7 +122,6 @@ async function isUSDTBlacklistedOnChain(address) {
     }
   }
 
-  // Try common method names used by Tether builds
   const signatures = [
     'isBlackListed(address)',
     'isBlacklisted(address)',
@@ -136,10 +136,10 @@ async function isUSDTBlacklistedOnChain(address) {
   return false; // unknown/missing method -> assume not blacklisted
 }
 
+// -------------------- Routes --------------------
+app.get('/api/health', (req, res) => res.json({ ok: true, tron_api: TRON_API }));
 
-// ---------- Routes ----------
-app.get('/api/health', (req, res) => res.json({ ok: true }));
-
+// Main wallet summary
 app.get('/api/address/:address/summary', async (req, res) => {
   try {
     const address = (req.params.address || '').trim();
@@ -275,14 +275,36 @@ app.get('/api/address/:address/summary', async (req, res) => {
   }
 });
 
+// Debug endpoint: shows exactly what we detect
+app.get('/api/debug/blacklist/:address', async (req, res) => {
+  const address = (req.params.address || '').trim();
+  if (!looksLikeTronAddress(address)) {
+    return res.status(400).json({ error: 'Invalid TRON address' });
+  }
+  try {
+    const securityAccount = await tronscanGet('/api/security/account/data', { address });
+    const flags = normalizeSecurityFlags(securityAccount);
+    const usdtOnChain = await isUSDTBlacklistedOnChain(address);
+
+    res.json({
+      address,
+      tronscan_security_raw: securityAccount,
+      tronscan_flags_normalized: flags,
+      usdt_onchain_blacklisted: usdtOnChain
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'debug failed', details: e?.response?.data || e.message });
+  }
+});
+
 // UI
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ---------- Start ----------
+// -------------------- Start --------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`SEKURA – MVP (TRON) server running on http://localhost:${PORT}`);
+  console.log(`SEKURA — MVP (TRON) server running on http://localhost:${PORT}`);
   console.log(`TRON_API: ${TRON_API}`);
 });
