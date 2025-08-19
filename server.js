@@ -96,27 +96,46 @@ function normalizeSecurityFlags(sec) {
   return f;
 }
 
-// On‑chain fallback for USDT blacklist
-const USDT_TRON_CONTRACT = 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj'; // Tether USD (TRC‑20)
+// On‑chain fallback for USDT blacklist via raw constant call
+const USDT_TRON_CONTRACT = 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj'; // TRC20 USDT
+
 async function isUSDTBlacklistedOnChain(address) {
-  try {
-    const c = await tronWeb.contract().at(USDT_TRON_CONTRACT);
-    const candidates = ['isBlackListed', 'isBlacklisted', 'getBlackListStatus', 'isBlackList'];
-    for (const m of candidates) {
-      if (typeof c[m] === 'function') {
-        const res = await c[m](address).call();
-        if (res === true || res === false) return res;
-        if (res && typeof res === 'object' && typeof res.toString === 'function') {
-          return isTrue(res.toString());
-        }
-        return isTrue(res);
-      }
+  const contractHex = tronWeb.address.toHex(USDT_TRON_CONTRACT);
+
+  // Helper: make a raw read call to a specific signature
+  async function trySig(signature) {
+    try {
+      const res = await tronWeb.transactionBuilder.triggerSmartContract(
+        contractHex,
+        signature,          // e.g. 'isBlackListed(address)'
+        {},                 // options
+        [{ type: 'address', value: address }]
+      );
+      const hex = res?.constant_result?.[0];
+      if (!hex) return null;
+      // decode bool from returned 32‑byte word
+      const [val] = tronWeb.utils.abi.decodeParams(['bool'], '0x' + hex);
+      return !!val;
+    } catch {
+      return null;
     }
-  } catch {
-    // best-effort fallback, ignore errors
   }
-  return false;
+
+  // Try common method names used by Tether builds
+  const signatures = [
+    'isBlackListed(address)',
+    'isBlacklisted(address)',
+    'getBlackListStatus(address)',
+    'isBlackList(address)'
+  ];
+
+  for (const sig of signatures) {
+    const out = await trySig(sig);
+    if (out !== null) return out;
+  }
+  return false; // unknown/missing method -> assume not blacklisted
 }
+
 
 // ---------- Routes ----------
 app.get('/api/health', (req, res) => res.json({ ok: true }));
