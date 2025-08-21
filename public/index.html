@@ -1,44 +1,72 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SEKURA — TRON USDT Blacklist Checker</title>
-  <link rel="icon" href="/favicon.svg" />
+  <title>SEKURA — Check if your USDT Wallet is Blacklisted</title>
+  <link rel="icon" href="/logo.svg" />
   <link rel="stylesheet" href="/styles.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <header class="container header">
-    <div class="logo">SEKURA</div>
+    <div class="logo">
+      <img src="/logo.svg" alt="SEKURA" />
+      <span>SEKURA</span>
+    </div>
     <nav class="nav">
       <a href="/">Home</a>
-      <a href="/pricing">Pricing</a>
-      <button id="themeToggle" class="btn ghost">Toggle Theme</button>
+      <a href="/pricing">Plans</a>
+      <a href="/auth">Sign In</a>
+
+      <div class="lang" title="Languages (coming soon)">
+        <span class="flag"></span>
+        <span>English</span>
+      </div>
+
+      <div class="theme-toggle" id="themeToggle">
+        <button data-mode="dark" class="active">🌙 Dark</button>
+        <button data-mode="light">☀️ Light</button>
+      </div>
     </nav>
   </header>
 
   <main class="container">
     <section class="hero">
-      <h1>USDT Blacklist Check — TRON</h1>
-      <p class="sub">Paste a TRON wallet. We’ll query the USDT contract on-chain.</p>
+      <img src="/logo.svg" alt="" width="48" height="48" />
+      <h1>Check if Your USDT Wallet<br/> is Blacklisted</h1>
+      <p class="sub">
+        Avoid unexpected freezes — instantly verify your TRC20 address for free.
+      </p>
+
       <div class="search">
-        <input id="addr" placeholder="Enter TRON address e.g. T..." />
-        <button id="checkBtn" class="btn primary">Check Wallet</button>
+        <input id="addr" placeholder="Enter your USDT wallet address (TRON, starts with T...)" />
+        <button id="checkBtn" class="btn primary">Check Now</button>
       </div>
+      <div class="helper">⚡ Supports TRON (USDT TRC‑20)</div>
       <div id="error" class="error hidden"></div>
     </section>
 
-    <section id="result" class="hidden">
-      <!-- Filled by app.js -->
-    </section>
+    <section id="result" class="hidden"></section>
   </main>
 
   <footer class="container footer">
     <div>© SEKURA</div>
-    <div class="muted">Powered by TronGrid</div>
+    <div class="muted">Built for compliance — data from TronGrid</div>
   </footer>
+
+  <div class="modal-backdrop" id="paywall">
+    <div class="modal">
+      <h3>Upgrade to unlock this feature</h3>
+      <p class="muted">
+        Save reports, export (PDF/CSV/XLSX/Word), hop analysis, and more are available on paid plans.
+      </p>
+      <div class="row">
+        <a href="/pricing" class="btn">View Plans</a>
+        <button class="btn primary" id="closePaywall">Close</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/app.js" type="module"></script>
 </body>
