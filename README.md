@@ -1,19 +1,18 @@
-# SEKURA — MVP (TRON)
+# SEKURA – MVP (TRON)
 
-A tiny proof‑of‑concept web app that analyzes a TRON wallet (TRC‑20 focus) using **TronScan** public APIs. No private keys required.
+On‑chain **USDT (TRC‑20) blacklist checker** + wallet summary for TRON addresses.
 
-## Quick Start (Replit or local)
+## 🔧 Tech
+- Backend: Node.js (Express), TronWeb/TronGrid
+- Frontend: Vanilla JS + custom CSS (light/dark)
+- Deploy: Replit (code pulled from GitHub)
 
-1) Add your TronScan API key (optional but recommended for rate limits).  
-   Header name: `TRON-PRO-API-KEY`
+## ⚙️ Setup
+1) Add env (Replit → Secrets):
+- `TRONGRID_API_KEY` = your key
+- `TRONGRID_API` = `https://api.trongrid.io` (optional)
 
-2) Replit:
-- Create/import this repo
-- In **Tools → Secrets**, add `TRONSCAN_API_KEY`
-- Click **Run**
-
-Local:
+2) Install & run
 ```bash
 npm install
-cp .env.sample .env   # put TRONSCAN_API_KEY if you have one
 npm start
