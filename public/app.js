@@ -1,91 +1,162 @@
-const addrInput = document.getElementById('addr');
-const analyzeBtn = document.getElementById('analyze');
-const results = document.getElementById('results');
-const summaryCard = document.getElementById('summaryCard');
-const tokensCard = document.getElementById('tokensCard');
-const txCard = document.getElementById('txCard');
+const addrInput = document.getElementById("addr");
+const checkBtn = document.getElementById("checkBtn");
+const result = document.getElementById("result");
+const errEl = document.getElementById("error");
+const themeToggle = document.getElementById("themeToggle");
 
-function fmt(n, d = 2) {
-  if (n === null || n === undefined || isNaN(n)) return '-';
-  return Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
-}
+themeToggle.addEventListener("click", () => {
+  const html = document.documentElement;
+  const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  html.setAttribute("data-theme", next);
+  localStorage.setItem("sekura-theme", next);
+});
 
-function tsToDate(ts) {
-  if (!ts) return '-';
-  const d = new Date(ts);
-  return d.toLocaleString();
-}
+(function initTheme() {
+  const saved = localStorage.getItem("sekura-theme");
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+})();
 
-async function analyze() {
+checkBtn.addEventListener("click", async () => {
   const address = addrInput.value.trim();
-  if (!address) { alert('Please paste a TRON address'); return; }
-  analyzeBtn.disabled = true; analyzeBtn.textContent = 'Analyzing...';
-  try {
-    const res = await fetch(`/api/address/${encodeURIComponent(address)}/summary`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed');
-    render(data);
-  } catch (e) {
-    alert(e.message);
-  } finally {
-    analyzeBtn.disabled = false; analyzeBtn.textContent = 'Analyze';
+  errEl.classList.add("hidden");
+  result.classList.add("hidden");
+  result.innerHTML = "";
+
+  if (!address || !address.startsWith("T")) {
+    showErr("Please enter a valid TRON address (starts with T).");
+    return;
   }
+
+  try {
+    const res = await fetch(`/api/wallet/${address}/summary`);
+    if (!res.ok) {
+      const msg = await res.json().catch(() => ({}));
+      throw new Error(msg?.error || "Request failed");
+    }
+    const data = await res.json();
+    renderCard(data);
+  } catch (e) {
+    showErr(e.message || "Something went wrong");
+  }
+});
+
+function showErr(msg) {
+  errEl.textContent = msg;
+  errEl.classList.remove("hidden");
 }
 
-function render(data) {
-  results.style.display = 'grid';
-  // Summary
-  const totalUsd = data.totals?.totalAssetInUsd;
-  summaryCard.innerHTML = `
-    <h3>Summary</h3>
-    <div class="muted">${data.address}</div>
-    <p><span class="pill">TRX</span> Balance: <b>${fmt(data.trxBalance, 6)}</b></p>
-    <p>Total Assets (USD est.): <b>${totalUsd ? '$' + fmt(totalUsd, 2) : '-'}</b></p>
-    <p>Tx Count: <b>${fmt(data.meta?.totalTransactionCount || 0, 0)}</b></p>
-    <p>Latest Activity: <b>${tsToDate(data.meta?.latestOperationTime)}</b></p>
-    <h4>Risk</h4>
-    <p>Score: <b>${fmt(data.risk?.score, 0)}/100</b></p>
-    <ul>
-      ${(data.risk?.reasons || []).map(r => `<li class="${r.toLowerCase().includes('black') ? 'danger':''}">${r}</li>`).join('') || '<li>No obvious risk flags from TronScan</li>'}
-    </ul>
-    <div class="muted">Powered by TronScan Security flags.</div>
-  `;
+function badge(status) {
+  const map = {
+    "Safe": "badge green",
+    "Needs Review": "badge yellow",
+    "Blacklisted": "badge red"
+  };
+  return `<span class="${map[status] || "badge"}">${status}</span>`;
+}
 
-  // Tokens
-  const rows = (data.tokens || []).map(t => `
-    <tr>
-      <td>${t.tokenAbbr || t.tokenName}</td>
-      <td>${fmt(t.balanceFormatted, 6)}</td>
-      <td>${t.tokenType.toUpperCase()}</td>
-      <td>${t.assetInUsd ? '$' + fmt(t.assetInUsd, 2) : '-'}</td>
-    </tr>
-  `).join('');
-  tokensCard.innerHTML = `
-    <h3>Token Holdings</h3>
-    <table>
-      <thead><tr><th>Token</th><th>Balance</th><th>Type</th><th>USD</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="4" class="muted">No tokens found</td></tr>'}</tbody>
-    </table>
-  `;
-
-  // Transfers
-  const txRows = (data.recentTransfers || []).map(x => `
-    <tr>
-      <td><code>${x.txHash.slice(0,10)}...</code></td>
-      <td>${tsToDate(x.timestamp)}</td>
-      <td>${x.direction}</td>
-      <td>${fmt(x.valueFormatted, 6)} ${x.tokenAbbr || ''}</td>
-      <td><small>from</small> ${x.from.slice(0,6)}... <small>to</small> ${x.to.slice(0,6)}...</td>
-    </tr>
-  `).join('');
-  txCard.innerHTML = `
-    <h3>Recent TRC-20 Transfers</h3>
-    <table>
-      <thead><tr><th>Tx</th><th>Time</th><th>Dir</th><th>Amount</th><th>Path</th></tr></thead>
-      <tbody>${txRows || '<tr><td colspan="5" class="muted">No recent TRC-20 transfers</td></tr>'}</tbody>
-    </table>
+function upgradeCTA(text) {
+  return `
+    <div class="upgrade">
+      <p>${text}</p>
+      <a href="/pricing" class="btn primary">Upgrade Now</a>
+    </div>
   `;
 }
 
-analyzeBtn.addEventListener('click', analyze);
-addrInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') analyze(); });
+function renderCard(d) {
+  const statusNote =
+    d.status === "Safe" ? `<p class="muted">This wallet appears safe to transact with.</p>` :
+    d.status === "Needs Review" ? upgradeCTA(`This wallet has suspicious activity. Get tailored recommendations on how to stay compliant and avoid future blacklisting by upgrading to the Paid Plan.`) :
+    upgradeCTA(`This wallet is blacklisted. The full report reveals which contaminated wallets caused this. Unlock the full investigation in the Paid Plan.`);
+
+  const tokensTable = d.tokens.map(t => `
+    <tr>
+      <td>${t.symbol}</td>
+      <td class="muted">${t.name}</td>
+      <td>${t.balance?.toLocaleString(undefined, {maximumFractionDigits: 6})}</td>
+      <td>${t.usd != null ? `$${t.usd.toLocaleString(undefined, {maximumFractionDigits: 2})}` : "—"}</td>
+    </tr>
+  `).join("");
+
+  const txRows = (d.transactions?.trc20_recent || []).map(tx => {
+    const dir = tx.to === d.address ? "in" : (tx.from === d.address ? "out" : "other");
+    const ts = tx.block_timestamp ? new Date(tx.block_timestamp).toLocaleString() : "—";
+    const val = tx.value ? Number(tx.value) / (10 ** (tx.token_info?.decimals ?? 6)) : (tx.value_raw ? Number(tx.value_raw) : 0);
+    return `
+      <tr>
+        <td>${ts}</td>
+        <td>${dir}</td>
+        <td>${(tx.token_info?.symbol || "USDT")}</td>
+        <td>${val.toLocaleString(undefined, {maximumFractionDigits: 6})}</td>
+        <td class="mono">${(tx.transaction_id || tx.txID || "").slice(0,8)}…</td>
+      </tr>
+    `;
+  }).join("");
+
+  const created = d.meta?.created_at ? new Date(d.meta.created_at).toLocaleString() : "—";
+
+  result.innerHTML = `
+    <div class="card">
+      <div class="card-head">
+        <h2>${badge(d.status)} Wallet report</h2>
+        <div class="score">
+          <div class="ring">
+            <span>${d.risk?.score ?? 0}</span>
+          </div>
+          <div class="muted">Risk Score</div>
+        </div>
+      </div>
+
+      ${statusNote}
+
+      <div class="grid">
+        <div>
+          <div class="label">Wallet Address</div>
+          <div class="mono">${d.address}</div>
+        </div>
+        <div>
+          <div class="label">Network</div>
+          <div>TRON</div>
+        </div>
+        <div>
+          <div class="label">Total Balance (USD)</div>
+          <div>${d.totals?.usd != null ? `$${d.totals.usd.toLocaleString(undefined, {maximumFractionDigits: 2})}` : "—"}</div>
+        </div>
+        <div>
+          <div class="label">Reason</div>
+          <div class="muted">${(d.risk?.reasons || []).join("; ") || "—"}</div>
+        </div>
+        <div>
+          <div class="label">Transaction Count (returned)</div>
+          <div>${d.transactions?.count_returned ?? 0}</div>
+        </div>
+        <div>
+          <div class="label">Wallet Creation</div>
+          <div>${created}</div>
+        </div>
+        <div>
+          <div class="label">Blacklist Timestamp</div>
+          <div>${d.blacklist_timestamp ? new Date(d.blacklist_timestamp).toLocaleString() : "—"}</div>
+        </div>
+      </div>
+
+      <h3>Token Balances</h3>
+      <table class="table">
+        <thead><tr><th>Symbol</th><th>Name</th><th>Balance</th><th>USD</th></tr></thead>
+        <tbody>${tokensTable}</tbody>
+      </table>
+
+      <h3>Recent TRC-20 Transactions (USDT)</h3>
+      <table class="table">
+        <thead><tr><th>Time</th><th>Dir</th><th>Token</th><th>Amount</th><th>Tx</th></tr></thead>
+        <tbody>${txRows || `<tr><td colspan="5" class="muted">No recent USDT transfers</td></tr>`}</tbody>
+      </table>
+
+      <div class="actions">
+        <button class="btn" disabled title="Paid feature">Save Report</button>
+        <button class="btn" disabled title="Paid feature">Export Report</button>
+      </div>
+    </div>
+  `;
+  result.classList.remove("hidden");
+}
