@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SEKURA — Pricing</title>
+  <link rel="icon" href="/favicon.svg" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="container header">
+    <div class="logo">SEKURA</div>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/pricing">Pricing</a>
+      <button id="themeToggle" class="btn ghost">Toggle Theme</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <h1>Choose your plan</h1>
+    <div class="pricing">
+      <div class="plan">
+        <h3>Free</h3>
+        <div class="price">$0 <span class="muted">/mo</span></div>
+        <ul>
+          <li>On‑chain blacklist check (USDT TRON)</li>
+          <li>Landing page quick checks</li>
+          <li>Basic wallet summary</li>
+        </ul>
+        <button class="btn primary" disabled>Get Started</button>
+      </div>
+      <div class="plan">
+        <h3>Plus</h3>
+        <div class="price">$49.99 <span class="muted">/mo</span></div>
+        <ul>
+          <li>Full report + export (PDF/CSV/XLSX/Word)</li>
+          <li>Detailed risk analysis, up to 5 hops</li>
+          <li>TRC‑20, ERC‑20, BEP‑20 support</li>
+          <li>Batch address checks</li>
+          <li>Email support</li>
+          <li>Expert compliance reports</li>
+        </ul>
+        <button class="btn primary" disabled>Upgrade (Coming Soon)</button>
+      </div>
+      <div class="plan">
+        <h3>Pro</h3>
+        <div class="price">$99.99 <span class="muted">/mo</span></div>
+        <ul>
+          <li>Up to 15 hops</li>
+          <li>Monitoring + weekly alerts</li>
+          <li>Complete history + API access</li>
+          <li>Priority support</li>
+          <li>Custom compliance reports (KYC/KYB/KYW/KYT)</li>
+        </ul>
+        <button class="btn primary" disabled>Upgrade (Coming Soon)</button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="container footer">
+    <div>© SEKURA</div>
+    <div class="muted">Stripe integration coming in v2</div>
+  </footer>
+
+  <script>
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      const html = document.documentElement;
+      const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      html.setAttribute("data-theme", next);
+      localStorage.setItem("sekura-theme", next);
+    });
+    (function(){
+      const saved = localStorage.getItem("sekura-theme");
+      if (saved) document.documentElement.setAttribute("data-theme", saved);
+    })();
+  </script>
+</body>
+</html>
