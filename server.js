@@ -1,310 +1,234 @@
-// SEKURA — MVP (TRON)
-// Express server that aggregates TronScan data and adds on‑chain blacklist checks via TronWeb.
+// SEKURA – MVP (TRON)
+// Minimal backend for: USDT blacklisted check + wallet summary
 
-const express = require('express');
-const axios = require('axios');
-const cors = require('cors');
-const path = require('path');
-require('dotenv').config();
+import express from "express";
+import axios from "axios";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+import TronWeb from "tronweb";
 
-const TronWeb = require('tronweb');
+dotenv.config();
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 
-// -------------------- Config --------------------
-const TRONSCAN_BASE = 'https://apilist.tronscanapi.com';
+const TRONGRID_API = process.env.TRONGRID_API || "https://api.trongrid.io";
+const TRONGRID_API_KEY = process.env.TRONGRID_API_KEY || "";
+const tronHeaders = TRONGRID_API_KEY ? { "TRON-PRO-API-KEY": TRONGRID_API_KEY } : {};
 
-// TronGrid / Full node (for on‑chain contract calls)
-const TRON_API = process.env.TRON_API || 'https://api.trongrid.io';
-const tronHeaders = {};
-if (process.env.TRONGRID_API_KEY) {
-  tronHeaders['TRON-PRO-API-KEY'] = process.env.TRONGRID_API_KEY;
-}
-const tronWeb = new TronWeb({ fullHost: TRON_API, headers: tronHeaders });
+const tronWeb = new TronWeb({ fullHost: TRONGRID_API, headers: tronHeaders });
 
-// Prefer TronScan API key if provided (better limits on explorer endpoints)
-function tronscanHeaders() {
-  const key =
-    process.env.TRONSCAN_API_KEY ||
-    process.env.TRON_PRO_API_KEY ||
-    process.env['TRON-PRO-API-KEY'];
-  return key ? { 'TRON-PRO-API-KEY': key } : {};
+// USDT TRC-20 contract (mainnet)
+const USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+
+// Helpers
+function isTronBase58(addr) {
+  return typeof addr === "string" && addr.length >= 26 && addr.length <= 36 && addr.startsWith("T");
 }
 
-async function tronscanGet(endpoint, params = {}) {
-  const url = `${TRONSCAN_BASE}${endpoint}`;
-  const res = await axios.get(url, {
-    params,
-    headers: tronscanHeaders(),
-    timeout: 15000
+function to20ByteHexFromBase58(addr) {
+  // TronWeb adds "41" prefix for hex form; strip it for 20-byte ABI param
+  const hexWith41 = tronWeb.address.toHex(addr); // e.g., 41... (21 bytes)
+  if (!hexWith41 || !hexWith41.startsWith("41") || hexWith41.length !== 42) {
+    throw new Error("Invalid TRON address (hex)");
+  }
+  return hexWith41.slice(2); // 20 bytes (40 hex chars)
+}
+
+function pad64(hex) {
+  return hex.padStart(64, "0");
+}
+
+async function triggerConstant({ contract, selector, paramHex64, ownerBase58 }) {
+  // Use function_selector + parameter with visible:true (Base58 in body)
+  const body = {
+    owner_address: ownerBase58,
+    contract_address: contract,
+    function_selector: selector,
+    parameter: paramHex64,
+    visible: true,
+    call_value: 0
+  };
+  const { data } = await axios.post(
+    `${TRONGRID_API}/wallet/triggerconstantcontract`,
+    body,
+    { headers: { "Content-Type": "application/json", ...tronHeaders } }
+  );
+  return data;
+}
+
+async function callBool(selector, ownerBase58, contractBase58, addressBase58) {
+  const a20 = to20ByteHexFromBase58(addressBase58);
+  const param = pad64(a20);
+  const out = await triggerConstant({
+    contract: contractBase58,
+    selector,
+    paramHex64: param,
+    ownerBase58
   });
-  return res.data;
+  const r = out?.constant_result?.[0] || "";
+  if (!r) return null;
+  // last bit of 32-byte word
+  return r.endsWith("1");
 }
 
-// -------------------- Helpers --------------------
-function looksLikeTronAddress(addr) {
-  return typeof addr === 'string' && addr.length >= 26 && addr.length <= 36 && addr.startsWith('T');
+async function callUint(selector, ownerBase58, contractBase58, addressBase58) {
+  const a20 = to20ByteHexFromBase58(addressBase58);
+  const param = pad64(a20);
+  const out = await triggerConstant({
+    contract: contractBase58,
+    selector,
+    paramHex64: param,
+    ownerBase58
+  });
+  const r = out?.constant_result?.[0] || "";
+  if (!r) return 0n;
+  return BigInt("0x" + r);
 }
 
-// Normalize any boolean-like value: true/1/'1'/'true'/'yes'
-function isTrue(v) {
-  if (v === true) return true;
-  if (typeof v === 'number') return v !== 0;
-  if (typeof v === 'string') {
-    const s = v.trim().toLowerCase();
-    return s === 'true' || s === '1' || s === 'yes';
-  }
-  return false;
-}
-
-// Flatten TronScan security flags and synthesize common aliases
-function normalizeSecurityFlags(sec) {
-  const f = {};
-  if (!sec || typeof sec !== 'object') return f;
-
-  for (const [k, v] of Object.entries(sec)) {
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      for (const [kk, vv] of Object.entries(v)) {
-        f[`${k}.${kk}`] = isTrue(vv);
-      }
-    } else {
-      f[k] = isTrue(v);
-    }
-  }
-
-  // High-level aliases commonly seen
-  f.is_black_list = f.is_black_list || f.is_blacklist || f['stablecoin_blacklist'] || false;
-
-  // Token-specific (USDT/USDC) — cover a few likely shapes
-  f.usdt_blacklisted =
-    f['usdt_blacklisted'] ||
-    f['usdt.is_black_list'] ||
-    f['USDT'] ||
-    f['Tether'] ||
-    false;
-
-  f.usdc_blacklisted =
-    f['usdc_blacklisted'] ||
-    f['usdc.is_black_list'] ||
-    f['USDC'] ||
-    false;
-
-  return f;
-}
-
-// ---------- Robust on‑chain USDT blacklist check (no ABI needed) ----------
-const USDT_TRON_CONTRACT = 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj'; // USDT (TRC‑20)
-
-// Set a harmless default address so TronWeb can build constant calls
-try { tronWeb.setAddress('TQ5D7rjv3Z5Q3oS8j1gGq2Dq2wZJd2iQ7T'); } catch {}
-
-async function isUSDTBlacklistedOnChain(address) {
-  const contractHex = tronWeb.address.toHex(USDT_TRON_CONTRACT);
-
-  // Raw constant call for a given signature and single 'address' param
-  async function trySig(signature) {
-    try {
-      const res = await tronWeb.transactionBuilder.triggerSmartContract(
-        contractHex,
-        signature,          // e.g. 'isBlackListed(address)'
-        { callValue: 0 },
-        [{ type: 'address', value: address }]
-      );
-      const hex = res?.constant_result?.[0];
-      if (!hex) return null;
-      const [val] = tronWeb.utils.abi.decodeParams(['bool'], '0x' + hex);
-      return !!val;
-    } catch {
-      return null;
-    }
-  }
-
-  const signatures = [
-    'isBlackListed(address)',
-    'isBlacklisted(address)',
-    'getBlackListStatus(address)',
-    'isBlackList(address)'
-  ];
-
-  for (const sig of signatures) {
-    const out = await trySig(sig);
-    if (out !== null) return out;
-  }
-  return false; // unknown/missing method -> assume not blacklisted
-}
-
-// -------------------- Routes --------------------
-app.get('/api/health', (req, res) => res.json({ ok: true, tron_api: TRON_API }));
-
-// Main wallet summary
-app.get('/api/address/:address/summary', async (req, res) => {
+async function getDecimals() {
   try {
-    const address = (req.params.address || '').trim();
-    if (!looksLikeTronAddress(address)) {
-      return res.status(400).json({ error: 'Invalid TRON address format (must start with T...)' });
-    }
-
-    // Pull core data from TronScan in parallel
-    const [
-      accountDetail,
-      tokenList,
-      tokenOverview,
-      securityAccount,
-      trc20Transfers
-    ] = await Promise.all([
-      tronscanGet('/api/accountv2', { address }),
-      tronscanGet('/api/account/tokens', {
-        address, start: 0, limit: 200, hidden: 0, show: 0, sortType: 0, sortBy: 0
-      }),
-      tronscanGet('/api/account/token_asset_overview', { address }),
-      tronscanGet('/api/security/account/data', { address }),
-      tronscanGet('/api/transfer/trc20', {
-        address, start: 0, limit: 20, direction: 0, reverse: 'true', db_version: 1
-      })
-    ]);
-
-    // Balances
-    const trxBalanceSun = accountDetail?.balance ?? 0;
-    const trxBalance = Number(trxBalanceSun) / 1e6;
-
-    // Tokens
-    const tokens = (tokenList?.data || []).map(t => ({
-      tokenId: t.tokenId,
-      tokenAddress: t.tokenId,       // TRC‑20: contract address
-      tokenName: t.tokenName,
-      tokenAbbr: t.tokenAbbr,
-      tokenDecimal: t.tokenDecimal,
-      tokenType: t.tokenType,        // trc10 / trc20
-      balance: t.balance,            // raw string
-      balanceFormatted: Number(t.balance) / Math.pow(10, Number(t.tokenDecimal || 0)),
-      priceInUsd: t.tokenPriceInUsd || null,
-      assetInUsd: t.assetInUsd || null
-    }));
-
-    // Totals
-    const totals = {
-      totalAssetInUsd: tokenOverview?.totalAssetInUsd ?? null,
-      totalAssetInTrx: tokenOverview?.totalAssetInTrx ?? null
-    };
-
-    // Recent transfers
-    const recentTransfers = (trc20Transfers?.token_transfers || []).map(x => ({
-      txHash: x.transaction_id,
-      timestamp: x.block_ts,
-      tokenName: x.tokenName || x.symbol,
-      tokenAbbr: x.symbol || x.tokenAbbr,
-      contract: x.contract_address,
-      from: x.from_address,
-      to: x.to_address,
-      value: x.quant,
-      decimals: x.decimals,
-      valueFormatted: Number(x.quant) / Math.pow(10, Number(x.decimals || 0)),
-      direction:
-        x.to_address === address ? 'in' :
-        x.from_address === address ? 'out' : 'other'
-    }));
-
-    // ---------- Risk scoring (improved) ----------
-    const flags = normalizeSecurityFlags(securityAccount);
-    let score = 0;
-    const reasons = [];
-
-    // Global/explorer blacklist
-    if (flags.is_black_list) {
-      score += 70;
-      reasons.push('Address appears on a TronScan blacklist');
-    }
-
-    // Token‑specific blacklists from explorer
-    const tokenBlacklists = [];
-    if (flags.usdt_blacklisted) tokenBlacklists.push('USDT');
-    if (flags.usdc_blacklisted) tokenBlacklists.push('USDC');
-    if (tokenBlacklists.length) {
-      score += 70;
-      reasons.push(`Blacklisted in stablecoin(s): ${tokenBlacklists.join(', ')}`);
-    }
-
-    // On‑chain USDT blacklist (fallback if explorer didn’t show it)
-    if (!tokenBlacklists.includes('USDT')) {
-      const usdtOnChain = await isUSDTBlacklistedOnChain(address);
-      if (usdtOnChain) {
-        score += 70;
-        reasons.push('USDT contract reports address is blacklisted (on‑chain check)');
-      }
-    }
-
-    // Other TronScan heuristics
-    if (flags.has_fraud_transaction) {
-      score += 40; reasons.push('History of fraud‑flagged transactions');
-    }
-    if (flags.send_ad_by_memo) {
-      score += 10; reasons.push('Sent frequent advertising memos');
-    }
-    if (flags.fraud_token_creator) {
-      score += 20; reasons.push('Creator of suspicious tokens');
-    }
-
-    // Activity heuristics
-    const latestOp = accountDetail?.latest_operation_time || 0;
-    const txCount = accountDetail?.totalTransactionCount || 0;
-    if (txCount < 3) { score += 5; reasons.push('Low activity'); }
-
-    // Clamp 0..100
-    score = Math.max(0, Math.min(100, score));
-    // ---------- End risk scoring ----------
-
-    res.json({
-      address,
-      trxBalanceSun,
-      trxBalance,
-      totals,
-      tokens,
-      recentTransfers,
-      risk: { score, reasons, tronscanFlags: flags },
-      meta: { totalTransactionCount: txCount, latestOperationTime: latestOp }
-    });
-  } catch (err) {
-    console.error('Error in /api/address/:address/summary', err?.response?.data || err.message);
-    res.status(500).json({
-      error: 'Failed to fetch wallet summary',
-      details: err?.response?.data || err.message
-    });
+    const { data } = await axios.post(
+      `${TRONGRID_API}/wallet/triggerconstantcontract`,
+      {
+        owner_address: "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb",
+        contract_address: USDT,
+        function_selector: "decimals()",
+        visible: true
+      },
+      { headers: { "Content-Type": "application/json", ...tronHeaders } }
+    );
+    const r = data?.constant_result?.[0] || "0000000000000000000000000000000000000000000000000000000000000006";
+    return Number(BigInt("0x" + r));
+  } catch {
+    return 6;
   }
+}
+
+async function getAccount(address) {
+  const { data } = await axios.get(`${TRONGRID_API}/v1/accounts/${address}`, {
+    headers: tronHeaders
+  });
+  return data?.data?.[0] || null;
+}
+
+async function getRecentTRC20(address, limit = 10) {
+  const url = `${TRONGRID_API}/v1/accounts/${address}/transactions/trc20?limit=${limit}&contract_address=${USDT}&order_by=block_timestamp,desc`;
+  const { data } = await axios.get(url, { headers: tronHeaders });
+  return data?.data || [];
+}
+
+// Health
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, TRONGRID_API: TRONGRID_API, usdt_contract: USDT });
 });
 
-// Debug endpoint: shows exactly what we detect
-app.get('/api/debug/blacklist/:address', async (req, res) => {
-  const address = (req.params.address || '').trim();
-  if (!looksLikeTronAddress(address)) {
-    return res.status(400).json({ error: 'Invalid TRON address' });
-  }
+// Core: wallet summary
+app.get("/api/wallet/:address/summary", async (req, res) => {
   try {
-    const securityAccount = await tronscanGet('/api/security/account/data', { address });
-    const flags = normalizeSecurityFlags(securityAccount);
-    const usdtOnChain = await isUSDTBlacklistedOnChain(address);
+    const address = req.params.address.trim();
+    if (!isTronBase58(address)) {
+      return res.status(400).json({ error: "Invalid TRON address (must start with T...)" });
+    }
+
+    // 1) USDT blacklist (on-chain)
+    let blacklisted = await callBool("isBlackListed(address)", address, USDT, address);
+    if (blacklisted === null) {
+      // try alias if ABI name differs
+      blacklisted = await callBool("getBlackListStatus(address)", address, USDT, address);
+    }
+
+    // 2) USDT balance (on-chain)
+    const decimals = await getDecimals(); // expect 6
+    const rawBal = await callUint("balanceOf(address)", address, USDT, address);
+    const usdtBalance = Number(rawBal) / 10 ** decimals;
+
+    // 3) Account snapshot (tx counts, created_at, TRC20 list)
+    const acct = await getAccount(address);
+    const createdAt = acct?.create_time || null;
+    const trxSun = acct?.balance || 0;
+    const trxBalance = Number(trxSun) / 1e6;
+
+    // 4) Recent transfers (USDT only)
+    const recent = await getRecentTRC20(address, 10);
+
+    // 5) Risk score + status label
+    // Simple, transparent heuristic for MVP:
+    // - Blacklisted => 100 (Blacklisted)
+    // - Else if usdtBalance > 0 and recent >= 10 => 60 (Needs Review)
+    // - Else => 5 (Safe)
+    let riskScore = 5;
+    const reasons = [];
+    let status = "Safe";
+    if (blacklisted === true) {
+      riskScore = 100;
+      status = "Blacklisted";
+      reasons.push("USDT contract reports this address is blacklisted");
+    } else {
+      if (usdtBalance > 0 && recent.length >= 10) {
+        riskScore = 60;
+        status = "Needs Review";
+        reasons.push("Active USDT usage with frequent recent transfers");
+      } else {
+        reasons.push("No blacklist flags detected; low recent activity");
+      }
+    }
+
+    // 6) Total USD (MVP: USDT + small TRX approximation)
+    const totalUsd = usdtBalance + 0; // TRX ignored for USD here; tiny vs USDT
+
+    // 7) Token balances list (MVP: include USDT + TRX only)
+    const tokens = [
+      { symbol: "USDT", name: "Tether USD", contract: USDT, decimals, balance: usdtBalance, usd: usdtBalance },
+      { symbol: "TRX", name: "TRON", contract: "_", decimals: 6, balance: trxBalance, usd: null }
+    ];
+
+    // 8) “blacklisted timestamp” – USDT contract doesn’t expose historical timestamp.
+    // Leave null for MVP (we can infer from first revert block later if needed).
+    const blacklistTimestamp = blacklisted ? null : null;
 
     res.json({
       address,
-      tronscan_security_raw: securityAccount,
-      tronscan_flags_normalized: flags,
-      usdt_onchain_blacklisted: usdtOnChain
+      network: "TRON",
+      status, // Safe | Needs Review | Blacklisted
+      risk: { score: riskScore, reasons },
+      totals: { usd: totalUsd },
+      tokens,
+      blacklisted,
+      blacklist_timestamp: blacklistTimestamp,
+      transactions: {
+        trc20_recent: recent,
+        count_returned: recent.length
+      },
+      meta: {
+        created_at: createdAt,
+        source: "TronGrid",
+        note: "Totals are conservative; only USDT counted for USD"
+      }
     });
   } catch (e) {
-    res.status(500).json({ error: 'debug failed', details: e?.response?.data || e.message });
+    console.error("summary error", e?.response?.data || e.message);
+    res.status(500).json({ error: "Failed wallet summary", details: e?.response?.data || e.message });
   }
 });
 
-// UI
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// UI root -> index.html
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// -------------------- Start --------------------
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`SEKURA — MVP (TRON) server running on http://localhost:${PORT}`);
-  console.log(`TRON_API: ${TRON_API}`);
+// Pricing page
+app.get("/pricing", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "pricing.html"));
+});
+
+// Start
+const PORT = Number(process.env.PORT) || 3000;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`SEKURA – MVP running on http://localhost:${PORT}`);
 });
