@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SEKURA — Sign In</title>
+  <link rel="icon" href="/logo.svg" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="container header">
+    <div class="logo"><img src="/logo.svg" alt=""/><span>SEKURA</span></div>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/pricing">Plans</a>
+      <div class="theme-toggle" id="themeToggle"><button data-mode="dark" class="active">🌙 Dark</button><button data-mode="light">☀️ Light</button></div>
+    </nav>
+  </header>
+
+  <main class="container" style="display:grid; place-items:center; min-height:70vh;">
+    <div class="card" style="width:520px; max-width:95%;">
+      <h2 style="text-align:center;margin:6px 0 14px;">Welcome</h2>
+
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button class="btn small" id="tabSignIn">Sign In</button>
+        <button class="btn small" id="tabSignUp">Sign Up</button>
+      </div>
+
+      <form id="formSignIn">
+        <div class="label">Email</div>
+        <input style="width:100%;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text);" placeholder="Enter your email"/>
+        <div class="label" style="margin-top:10px;">Password</div>
+        <input type="password" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text);" placeholder="Enter your password"/>
+        <button class="btn primary" type="button" style="width:100%;margin-top:12px;" onclick="location.href='/app'">Sign In</button>
+      </form>
+
+      <form id="formSignUp" class="hidden">
+        <div class="label">Email</div>
+        <input style="width:100%;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text);" placeholder="Enter your email"/>
+        <div class="label" style="margin-top:10px;">Password</div>
+        <input type="password" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text);" placeholder="Create a password (min 6 chars)"/>
+        <div class="label" style="margin-top:10px;">Confirm Password</div>
+        <input type="password" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text);" placeholder="Confirm your password"/>
+        <button class="btn primary" type="button" style="width:100%;margin-top:12px;" onclick="location.href='/app'">Create Account</button>
+      </form>
+    </div>
+  </main>
+
+  <script>
+    const signIn = document.getElementById('formSignIn');
+    const signUp = document.getElementById('formSignUp');
+    document.getElementById('tabSignIn').onclick = () => { signIn.classList.remove('hidden'); signUp.classList.add('hidden'); };
+    document.getElementById('tabSignUp').onclick = () => { signUp.classList.remove('hidden'); signIn.classList.add('hidden'); };
+  </script>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
