@@ -1,19 +1,20 @@
 <!doctype html>
 <html lang="en" data-theme="light">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>SEKURA — Dashboard</title>
-  <link rel="icon" href="/logo.svg" />
-  <link rel="stylesheet" href="/styles.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="/logo.svg"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 <header class="container header">
   <div class="logo"><img src="/logo.svg" alt=""/><span>SEKURA</span></div>
   <nav class="nav">
     <a href="/">Home</a>
-    <a href="/pricing">Plans</a>
+    <a href="#plans" onclick="location.href='/'">Plans</a>
+    <div class="lang" title="English"><span class="flag"><img src="/flags/us.svg" width="20" height="14" alt="US"/></span><span>English</span></div>
     <div class="theme-toggle" id="themeToggle"><button data-mode="dark" class="active">🌙 Dark</button><button data-mode="light">☀️ Light</button></div>
   </nav>
 </header>
@@ -41,11 +42,11 @@
 
 <div class="modal-backdrop" id="paywall">
   <div class="modal">
-    <h3>Upgrade to unlock this feature</h3>
-    <p class="muted">History, Exports, and advanced insights are paid features.</p>
+    <h3>Premium Feature</h3>
+    <p class="muted">This is a premium feature only available for registered users. Sign Up today to get access.</p>
     <div class="row">
-      <a href="/pricing" class="btn">View Plans</a>
-      <button class="btn primary" id="closePaywall">Close</button>
+      <a href="/#plans" class="btn">View Plans</a>
+      <a href="/auth" class="btn primary">Upgrade Now</a>
     </div>
   </div>
 </div>
@@ -53,3 +54,4 @@
 <script src="/app.js" type="module"></script>
 </body>
 </html>
+
