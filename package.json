@@ -1,18 +1,13 @@
 {
   "name": "sekura-mvp-tron",
-  "version": "0.1.0",
-  "description": "SEKURA – MVP (TRON): On-chain USDT blacklist checker + wallet summary",
-  "main": "server.js",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "NODE_ENV=development node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "axios": "^1.7.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "tronweb": "^5.3.0"
+    "node-fetch": "^2.6.7",
+    "tronweb": "^5.3.2"
   }
 }
