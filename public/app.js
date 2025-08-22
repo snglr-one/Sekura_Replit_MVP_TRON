@@ -1,154 +1,191 @@
-// Theme toggle
-const themeToggle = document.getElementById("themeToggle");
-function setTheme(mode){
-  document.documentElement.setAttribute("data-theme", mode);
-  localStorage.setItem("sekura-theme", mode);
-  if(!themeToggle) return;
-  [...themeToggle.querySelectorAll("button")].forEach(b=>b.classList.toggle("active", b.dataset.mode === mode));
-}
-(function(){ setTheme(localStorage.getItem("sekura-theme") || "light"); })();
-themeToggle?.addEventListener("click", e=>{ const b=e.target.closest("button"); if(b) setTheme(b.dataset.mode); });
+/* THEME TOGGLE */
+const root = document.documentElement;
+document.getElementById('toggle-light')?.addEventListener('click', ()=>{
+  root.setAttribute('data-theme','light');
+  document.getElementById('toggle-light').classList.add('active');
+  document.getElementById('toggle-dark').classList.remove('active');
+});
+document.getElementById('toggle-dark')?.addEventListener('click', ()=>{
+  root.setAttribute('data-theme','dark');
+  document.getElementById('toggle-dark').classList.add('active');
+  document.getElementById('toggle-light').classList.remove('active');
+});
 
-// Paywall modal
-const paywall = document.getElementById("paywall");
-function showPaywall(){ if(paywall) paywall.style.display = "flex"; }
-document.getElementById("closePaywall")?.addEventListener("click", ()=> paywall.style.display = "none");
-paywall?.addEventListener("click", e=>{ if(e.target===paywall) paywall.style.display="none"; });
+/* PAYWALL MODAL */
+const paywall = document.getElementById('paywall');
+document.getElementById('closePaywall')?.addEventListener('click', ()=> paywall.style.display='none');
+const openPaywall = ()=> { paywall.style.display='flex'; };
 
-// Shared elements
-const addrInput = document.getElementById("addr");
-const checkBtn  = document.getElementById("checkBtn");
-const resultEl  = document.getElementById("result");
-const errEl     = document.getElementById("error");
-
-function showErr(msg){ if(!errEl) return; errEl.textContent = msg; errEl.classList.remove("hidden"); }
-function clearErr(){ if(!errEl) return; errEl.classList.add("hidden"); errEl.textContent = ""; }
-
-function statusBadge(status){
-  const cls = status==="Blacklisted"?"red":status==="Needs Review"?"yellow":"green";
-  return `<span class="badge ${cls}">${status}</span>`;
-}
-function ringColor(status){
-  if(status==="Blacklisted") return "var(--red)";
-  if(status==="Needs Review)") return "var(--yellow)";
-  if(status==="Needs Review") return "var(--yellow)";
-  return "var(--green)";
-}
-function riskRing(score, status){
-  const pct = Math.max(0, Math.min(100, Number(score||0)));
-  const deg = Math.round((pct/100)*360);
-  const col = status==="Blacklisted" ? "var(--red)" : status==="Needs Review" ? "var(--yellow)" : "var(--green)";
-  return `
-  <div class="score">
-    <div class="ring" style="background: conic-gradient(${col} ${deg}deg, transparent ${deg}deg);">
-      <span>${pct}</span>
-    </div>
-    <div class="label">Risk</div>
-  </div>`;
+/* MOCK: your server endpoint should fill these fields */
+async function checkAddress(addr){
+  // Replace fetch with your real endpoint (e.g., /api/check?address=...)
+  const res = await fetch(`/api/check?address=${encodeURIComponent(addr)}`);
+  if(!res.ok) throw new Error('API error');
+  return res.json();
 }
 
-// New copy blocks
-function resultCopy(status){
-  if(status==="Blacklisted"){
-    return `🚨 This wallet is blacklisted! The full report reveals which contaminated wallets caused this. Unlock the full investigation in a Paid Plan.`;
+/* Helpers */
+const fmt = (n)=> new Intl.NumberFormat().format(n);
+const tsfmt = (n)=> n ? new Date(n).toLocaleString() : '—';
+
+/* Risk color mapping */
+function statusToColors(status){
+  if(status==='Blacklisted') return {pill:'red', ring:'#EF4444'};
+  if(status==='Needs Review') return {pill:'yellow', ring:'#F5A524'};
+  return {pill:'green', ring:'#19C37D'}; // Safe
+}
+
+/* Copy per status */
+function statusMessage(status){
+  if(status==='Blacklisted'){
+    return '🚨 This wallet is blacklisted! The full report reveals which contaminated wallets caused this. Unlock the full investigation in a Paid Plan.';
   }
-  if(status==="Needs Review"){
-    return `⚠️ This wallet has suspicious activity. Prevent getting Blacklisted by Upgrading and getting tailored recommendations on how to stay compliant.`;
+  if(status==='Needs Review'){
+    return '⚠️ This wallet has suspicious activity. Prevent getting Blacklisted by Upgrading and getting tailored recommendations on how to stay compliant.';
   }
-  return `✅ This wallet is Safe to interact with, however, it might not in the future. Protect yourself by upgrading and getting weekly alerts.`;
+  return '✅ This wallet is Safe to interact with, however, it might not in the future. Protect yourself by upgrading and getting weekly alerts.';
 }
 
-function upgradeBlock(){
-  return `<div class="upgrade">
-    <div class="muted" style="margin-bottom:8px">Upgrade to access full reports, history, exports, and alerts.</div>
-    <a class="btn primary" href="#plans">Upgrade Now</a>
-  </div>`;
-}
+/* Render Result Card (matches your screenshot + tweaks) */
+function renderCard(data){
+  const { status, riskScore, reason, isBlacklisted, blacklistTimestamp,
+          address, network='TRON', totalUsd=0,
+          createdAt, recentUsdtTransfers=0, tokenBalances=[], recentTrc20=[] } = data;
 
-function renderCard(d){
-  if(!resultEl) return;
+  const { pill, ring } = statusToColors(status);
 
-  const tokens = (d.tokens||[]).map(t=>`
+  // Inline style variable for ring color
+  const ringStyle = `--ringColor:${ring}`;
+
+  const tokensRows = (tokenBalances || []).map(t => `
     <tr>
-      <td>${t.symbol}</td>
-      <td class="muted">${t.name}</td>
-      <td>${(t.balance??0).toLocaleString(undefined,{maximumFractionDigits:6})}</td>
-      <td>${t.usd!=null ? `$${t.usd.toLocaleString(undefined,{maximumFractionDigits:2})}` : "—"}</td>
-    </tr>`).join("");
+      <td>${t.symbol || ''}</td>
+      <td>${t.name || ''}</td>
+      <td style="text-align:right">${t.balance != null ? fmt(t.balance) : '—'}</td>
+      <td style="text-align:right">${t.usd != null ? ('$'+fmt(t.usd)) : '—'}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="4" class="muted">No tokens</td></tr>`;
 
-  const txs = (d.transactions?.trc20_recent||[]).map(tx=>{
-    const dir = tx.to === d.address ? "in" : (tx.from === d.address ? "out" : "other");
-    const ts = tx.block_timestamp ? new Date(tx.block_timestamp).toLocaleString() : "—";
-    const val = tx.value ? Number(tx.value)/(10**(tx.token_info?.decimals ?? 6)) : 0;
-    return `<tr><td>${ts}</td><td>${dir}</td><td>${tx.token_info?.symbol||"USDT"}</td><td>${val.toLocaleString(undefined,{maximumFractionDigits:6})}</td><td class="mono">${(tx.transaction_id||tx.txID||"").slice(0,8)}…</td></tr>`;
-  }).join("");
+  const txRows = (recentTrc20 || []).map(tx => `
+    <tr>
+      <td>${txfmt(tx.time)}</td>
+      <td>${tx.dir || ''}</td>
+      <td>${tx.token || ''}</td>
+      <td style="text-align:right">${tx.amount != null ? fmt(tx.amount) : '—'}</td>
+      <td class="mono">${(tx.hash || '').slice(0,8)}…</td>
+    </tr>
+  `).join('') || `<tr><td colspan="5" class="muted">No recent USDT transfers</td></tr>`;
 
-  const created = d.meta?.created_at ? new Date(d.meta.created_at).toLocaleString() : "—";
+  return `
+  <div class="card">
+    <div class="score" style="${ringStyle}">
+      <div class="ring"><span>${riskScore != null ? riskScore : '—'}</span></div>
+      <div class="label">Risk Score</div>
+    </div>
 
-  resultEl.innerHTML = `
-    <div class="card">
-      <div class="card-head">
-        <!-- left: status centered below -->
-        ${riskRing(d.risk?.score ?? 0, d.status)}
-      </div>
+    <!-- Centered wide pill -->
+    <div class="status-wrap">
+      <div class="pill ${pill}">${status}</div>
+    </div>
 
-      <div class="status-wrap">
-        ${statusBadge(d.status)}
-        <div class="status-title">${d.status}</div>
-      </div>
-
-      <div class="upgrade">
-        <p>${resultCopy(d.status)}</p>
-        <a class="btn primary" href="#plans">Upgrade Now</a>
-      </div>
-
-      <div class="grid">
-        <div><div class="label">Wallet Address</div><div class="mono">${d.address}</div></div>
-        <div><div class="label">Network</div><div>TRON</div></div>
-        <div><div class="label">Total Balance (USD)</div><div>${d.totals?.usd!=null?`$${d.totals.usd.toLocaleString(undefined,{maximumFractionDigits:2})}`:"—"}</div></div>
-        <div><div class="label">Reason</div><div class="muted">${(d.risk?.reasons||[]).join("; ")||"—"}</div></div>
-        <div><div class="label">Recent USDT transfers</div><div>${d.transactions?.count_returned ?? 0}</div></div>
-        <div><div class="label">Wallet Creation</div><div>${created}</div></div>
-        <div><div class="label">Blacklist Timestamp</div><div>${d.blacklist_timestamp?new Date(d.blacklist_timestamp).toLocaleString():"—"}</div></div>
-      </div>
-
-      <h3>Token Balances</h3>
-      <table class="table">
-        <thead><tr><th>Symbol</th><th>Name</th><th>Balance</th><th>USD</th></tr></thead>
-        <tbody>${tokens || `<tr><td colspan="4" class="muted">No tokens</td></tr>`}</tbody>
-      </table>
-
-      <h3>Recent TRC‑20 Transactions (USDT)</h3>
-      <table class="table">
-        <thead><tr><th>Time</th><th>Dir</th><th>Token</th><th>Amount</th><th>Tx</th></tr></thead>
-        <tbody>${txs || `<tr><td colspan="5" class="muted">No recent USDT transfers</td></tr>`}</tbody>
-      </table>
-
-      <div class="actions">
-        <button class="btn" onclick="showPaywall()">Save Report</button>
-        <button class="btn" onclick="showPaywall()">Export Report</button>
+    <!-- Callout -->
+    <div class="callout">
+      <div class="center">
+        <div>${statusMessage(status)}</div>
+        <a href="#plans" class="btn primary">Upgrade Now</a>
       </div>
     </div>
+
+    <!-- Meta grid -->
+    <div class="grid">
+      <div>
+        <div class="label">Wallet Address</div>
+        <div class="mono">${address}</div>
+
+        <div class="label" style="margin-top:10px">Reason</div>
+        <div>${reason || (isBlacklisted ? 'USDT contract reports this address is blacklisted' : '—')}</div>
+
+        <div class="label" style="margin-top:10px">Blacklist Timestamp</div>
+        <div>${tsfmt(blacklistTimestamp)}</div>
+      </div>
+      <div>
+        <div class="label">Network</div>
+        <div>${network}</div>
+
+        <div class="label" style="margin-top:10px">Recent USDT transfers</div>
+        <div>${fmt(recentUsdtTransfers || 0)}</div>
+      </div>
+      <div>
+        <div class="label">Total Balance (USD)</div>
+        <div>$${fmt(totalUsd || 0)}</div>
+
+        <div class="label" style="margin-top:10px">Wallet Creation</div>
+        <div>${tsfmt(createdAt)}</div>
+      </div>
+    </div>
+
+    <!-- Token balances -->
+    <h3 style="text-align:center;margin-top:12px">Token Balances</h3>
+    <table class="table">
+      <thead><tr><th>Symbol</th><th>Name</th><th>Balance</th><th>USD</th></tr></thead>
+      <tbody>${tokensRows}</tbody>
+    </table>
+
+    <!-- Recent USDT TRC-20 -->
+    <h3 style="text-align:center;margin-top:18px">Recent TRC-20 Transactions (USDT)</h3>
+    <table class="table">
+      <thead><tr><th>Time</th><th>Dir</th><th>Token</th><th>Amount</th><th>Tx</th></tr></thead>
+      <tbody>${txRows}</tbody>
+    </table>
+
+    <div class="actions">
+      <button id="saveReport" class="btn">Save Report</button>
+      <button id="exportReport" class="btn">Export Report</button>
+    </div>
+  </div>
   `;
-  resultEl.classList.remove("hidden");
 }
 
-async function runCheck(){
-  const address = addrInput?.value.trim();
-  if(!address || !address.startsWith("T")){ showErr("Please enter a valid TRON address (starts with T…)"); return; }
-  clearErr(); resultEl?.classList.add("hidden"); if(resultEl) resultEl.innerHTML = "";
+/* Mount & events */
+const resultEl = document.getElementById('result');
+document.getElementById('checkBtn')?.addEventListener('click', async ()=>{
+  const addr = document.getElementById('addr').value.trim();
+  if(!addr){ alert('Enter a wallet address'); return; }
   try{
-    const res = await fetch(`/api/wallet/${address}/summary`);
-    if(!res.ok){ const msg = await res.json().catch(()=>({})); throw new Error(msg?.error || "Request failed"); }
-    const data = await res.json();
-    renderCard(data);
-    // Smoothly scroll result into view
-    setTimeout(()=>{ resultEl?.scrollIntoView({behavior:"smooth", block:"start"}); }, 50);
-  }catch(e){ showErr(e.message || "Something went wrong"); }
+    const data = await checkAddress(addr);
+    resultEl.innerHTML = renderCard(data);
+
+    // Wire paywall buttons
+    document.getElementById('saveReport')?.addEventListener('click', openPaywall);
+    document.getElementById('exportReport')?.addEventListener('click', openPaywall);
+  }catch(e){
+    resultEl.innerHTML = `<div class="card"><div class="error">Error: ${e.message}</div></div>`;
+  }
+});
+
+/* Optional: demo rendering while backend is wired */
+if(!window.__NO_DEMO__){
+  const demo = {
+    status: 'Blacklisted',
+    riskScore: 100,
+    isBlacklisted: true,
+    reason: 'USDT contract reports this address is blacklisted',
+    blacklistTimestamp: null,
+    address: 'TEe8Jma9irkHGAv77s5LxjmL1AboRnorPJ',
+    network: 'TRON',
+    totalUsd: 225000,
+    recentUsdtTransfers: 2,
+    createdAt: 1691768340000, // example
+    tokenBalances: [
+      { symbol: 'USDT', name:'Tether USD', balance: 225000, usd: 225000 },
+      { symbol: 'TRX',  name:'TRON',      balance: 4.679288, usd: null }
+    ],
+    recentTrc20: [
+      { time: 1722944574000, dir:'in', token:'USDT', amount:223000, hash:'8496332b...' },
+      { time: 1722943443000, dir:'in', token:'USDT', amount:2000,   hash:'0ed726f8...' }
+    ]
+  };
+  resultEl.innerHTML = renderCard(demo);
+  document.getElementById('saveReport')?.addEventListener('click', openPaywall);
+  document.getElementById('exportReport')?.addEventListener('click', openPaywall);
 }
-
-checkBtn?.addEventListener("click", runCheck);
-addrInput?.addEventListener("keydown", e=>{ if(e.key==="Enter") runCheck(); });
-
-// Expose for sidebar buttons in dashboard
-window.showPaywall = showPaywall;
