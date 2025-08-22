@@ -1,6 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#2f5bff"/><stop offset="1" stop-color="#5b8cff"/></linearGradient></defs>
-  <rect width="48" height="48" rx="12" fill="url(#g)"/>
-  <path d="M24 10c6 3 10 2.5 10 2.5v9.5c0 7-5 10.5-10 13-5-2.5-10-6-10-13v-9.5S18 13 24 10z" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
-  <text x="24" y="27" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Inter, Arial">S</text>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#5B8CFF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded tile -->
+  <rect width="64" height="64" rx="16" fill="url(#g)"/>
+
+  <!-- BIG, centered shield -->
+  <!-- This shield fills more of the tile while staying inside the rounded corners -->
+  <path
+    d="M32 6
+       C41 10.3 48 9.3 48 9.3
+       V25
+       c0 11.8 -8.4 17.7 -16 21.3
+       c-7.6 -3.6 -16 -9.5 -16 -21.3
+       V9.3
+       S23 10.3 32 6z"
+    fill="none"
+    stroke="#fff"
+    stroke-width="3"
+    stroke-linejoin="round"/>
+
+  <!-- Centered “S” inside the shield -->
+  <text x="32" y="35" text-anchor="middle"
+        font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial"
+        font-weight="800" font-size="18" fill="#fff">S</text>
 </svg>
