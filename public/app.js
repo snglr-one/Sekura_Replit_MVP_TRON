@@ -16,12 +16,34 @@ const paywall = document.getElementById('paywall');
 document.getElementById('closePaywall')?.addEventListener('click', ()=> paywall.style.display='none');
 const openPaywall = ()=> { paywall.style.display='flex'; };
 
-/* MOCK: your server endpoint should fill these fields */
+/* -------- Robust API call with clear errors & route fallback -------- */
 async function checkAddress(addr){
-  // Replace fetch with your real endpoint (e.g., /api/check?address=...)
-  const res = await fetch(`/api/check?address=${encodeURIComponent(addr)}`);
-  if(!res.ok) throw new Error('API error');
-  return res.json();
+  const tryFetch = async (url) => {
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const text = await res.text();            // read raw to show body on errors
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText} — ${text || 'no body'}`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`Unexpected response (not JSON): ${text.slice(0,200)}`);
+    }
+  };
+
+  const q = encodeURIComponent(addr);
+  // Try /api/check first, then /check (covers both server setups)
+  try {
+    return await tryFetch(`/api/check?address=${q}`);
+  } catch (e1) {
+    // Fallback route
+    try {
+      return await tryFetch(`/check?address=${q}`);
+    } catch (e2) {
+      // surface the clearer of the two errors
+      throw new Error(e2?.message || e1?.message || 'Unknown API error');
+    }
+  }
 }
 
 /* Helpers */
@@ -46,15 +68,13 @@ function statusMessage(status){
   return '✅ This wallet is Safe to interact with, however, it might not in the future. Protect yourself by upgrading and getting weekly alerts.';
 }
 
-/* Render Result Card (matches your screenshot + tweaks) */
+/* Render Result Card (matches your screenshot + centered wide pill) */
 function renderCard(data){
   const { status, riskScore, reason, isBlacklisted, blacklistTimestamp,
           address, network='TRON', totalUsd=0,
           createdAt, recentUsdtTransfers=0, tokenBalances=[], recentTrc20=[] } = data;
 
   const { pill, ring } = statusToColors(status);
-
-  // Inline style variable for ring color
   const ringStyle = `--ringColor:${ring}`;
 
   const tokensRows = (tokenBalances || []).map(t => `
@@ -68,7 +88,7 @@ function renderCard(data){
 
   const txRows = (recentTrc20 || []).map(tx => `
     <tr>
-      <td>${txfmt(tx.time)}</td>
+      <td>${tsfmt(tx.time)}</td>
       <td>${tx.dir || ''}</td>
       <td>${tx.token || ''}</td>
       <td style="text-align:right">${tx.amount != null ? fmt(tx.amount) : '—'}</td>
@@ -154,11 +174,10 @@ document.getElementById('checkBtn')?.addEventListener('click', async ()=>{
   try{
     const data = await checkAddress(addr);
     resultEl.innerHTML = renderCard(data);
-
-    // Wire paywall buttons
     document.getElementById('saveReport')?.addEventListener('click', openPaywall);
     document.getElementById('exportReport')?.addEventListener('click', openPaywall);
   }catch(e){
+    // Show the precise reason now (status + body)
     resultEl.innerHTML = `<div class="card"><div class="error">Error: ${e.message}</div></div>`;
   }
 });
@@ -175,7 +194,7 @@ if(!window.__NO_DEMO__){
     network: 'TRON',
     totalUsd: 225000,
     recentUsdtTransfers: 2,
-    createdAt: 1691768340000, // example
+    createdAt: 1691768340000,
     tokenBalances: [
       { symbol: 'USDT', name:'Tether USD', balance: 225000, usd: 225000 },
       { symbol: 'TRX',  name:'TRON',      balance: 4.679288, usd: null }
