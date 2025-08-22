@@ -1,192 +1,132 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>SEKURA — Check if your USDT Wallet is Blacklisted</title>
-  <link rel="icon" href="/logo.svg"/>
-  <link rel="stylesheet" href="/styles.css"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SEKURA — Wallet Blacklist Check</title>
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-<header class="container header">
-  <div class="logo">
-    <img src="/logo.svg" alt="SEKURA"/>
-    <span>SEKURA</span>
-  </div>
-  <nav class="nav">
-    <a href="#features">Features</a>
-    <a href="#plans">Plans</a>
-    <a href="#contact">Contact</a>
-    <a href="/auth">Sign In</a>
-
-    <div class="lang" title="English">
-      <span class="flag"><img src="/flags/us.svg" alt="US" width="20" height="14"/></span>
-      <span>English</span>
+  <header class="container header">
+    <div class="logo">
+      <img src="/brand/sekura-logo.svg" alt="SEKURA" />
+      <span>SEKURA</span>
     </div>
-
-    <div class="theme-toggle" id="themeToggle">
-      <button data-mode="dark" class="active">🌙 Dark</button>
-      <button data-mode="light">☀️ Light</button>
-    </div>
-  </nav>
-</header>
-
-<main class="container">
-  <!-- Hero -->
-  <section class="hero">
-    <img src="/logo.svg" alt="" width="64" height="64"/>
-    <h1>Check if Your USDT Wallet<br/> is Blacklisted</h1>
-    <p class="sub">Avoid unexpected freezes — instantly verify your TRC20 address for free.</p>
-
-    <div class="search">
-      <input id="addr" placeholder="Enter your USDT wallet address (TRON, starts with T…)" />
-      <button id="checkBtn" class="btn primary">Check Now</button>
-    </div>
-    <div class="helper">⚡ Supports TRON (USDT TRC‑20)</div>
-    <div id="error" class="error hidden"></div>
-
-    <!-- Result -->
-    <section id="result" class="hidden"></section>
-  </section>
-
-  <!-- Features -->
-  <section class="section" id="features">
-    <h2>Why Choose SEKURA?</h2>
-    <p class="lead">We help you stay compliant and protect your funds. We check known blacklists in real time.</p>
-    <div class="features-grid">
-      <div class="feature">
-        <div class="icon">🔎</div>
-        <h3>Instant Wallet Check</h3>
-        <p class="muted">Get real‑time blacklist status for TRC20 addresses in seconds.</p>
+    <nav class="nav">
+      <a href="#features">Features</a>
+      <a href="#plans">Plans</a>
+      <a href="#contact">Contact</a>
+      <div class="lang">
+        <span class="flag"><img src="/flags/us.svg" alt="US"></span>
+        <span>English</span>
       </div>
-      <div class="feature">
-        <div class="icon">🛡️</div>
-        <h3>Blacklist Alerts</h3>
-        <p class="muted">Stay informed with immediate notifications about status changes.</p>
+      <div class="theme-toggle">
+        <button id="toggle-light">☀ Light</button>
+        <button id="toggle-dark" class="active">🌙 Dark</button>
       </div>
-      <div class="feature">
-        <div class="icon">✅</div>
-        <h3>Simple to Use</h3>
-        <p class="muted">Paste a wallet address and get instant results. No registration required.</p>
-      </div>
-      <div class="feature">
-        <div class="icon">⚡</div>
-        <h3>Multi‑Network Support</h3>
-        <p class="muted">TRON today; ERC‑20 & BSC ready for rollout.</p>
-      </div>
-      <div class="feature">
-        <div class="icon">📈</div>
-        <h3>Transaction Tracing</h3>
-        <p class="muted">Hop analysis to trace fund flows and potential counterparties.</p>
-      </div>
-      <div class="feature">
-        <div class="icon">🔒</div>
-        <h3>Privacy Focused</h3>
-        <p class="muted">We never store private keys. Read‑only analytics via public APIs.</p>
-      </div>
-    </div>
-  </section>
+    </nav>
+  </header>
 
-  <!-- Plans on Landing -->
-  <section class="section" id="plans">
-    <h2>Choose Your Protection Level</h2>
-    <p class="lead">Start free and upgrade as your needs grow. All plans include real‑time blacklist checking.</p>
-    <div class="plans">
-      <div class="plan">
-        <h3>Free</h3>
-        <div class="muted">Perfect for occasional checks</div>
-        <div class="price"><strong>$0</strong><span class="muted"> / forever</span></div>
-        <ul>
-          <li>Single wallet address check</li>
-          <li>Basic blacklist status</li>
-          <li>1‑hop transaction trace</li>
-          <li>TRC‑20 support</li>
-        </ul>
-        <a href="/auth" class="btn primary">Start Free</a>
-      </div>
+  <main class="container">
+    <section class="hero">
+      <img class="brand" src="/brand/sekura-logo.svg" alt="SEKURA" />
+      <h1>Check if Your USDT Wallet is Blacklisted</h1>
+      <p class="sub">Avoid unexpected freezes — instantly verify your TRC20 address for free.</p>
 
-      <div class="plan">
-        <h3>Plus</h3>
-        <div class="muted">Great for traders and businesses</div>
-        <div class="price"><strong>$49.99</strong><span class="muted"> / month</span></div>
-        <ul>
-          <li>Everything in Free</li>
-          <li>Up to 5‑hop transaction tracing</li>
-          <li>Detailed risk analysis</li>
-          <li>Export compliance reports</li>
-          <li>Email support</li>
-          <li>Batch address checking</li>
-        </ul>
-        <a href="/auth" class="btn primary">Upgrade to Plus</a>
+      <div class="search">
+        <input id="addr" placeholder="Enter TRC-20 wallet address" />
+        <button id="checkBtn" class="btn primary">Check Now</button>
       </div>
+      <div class="helper">Supports TRON • Read‑only checks via Tron APIs</div>
 
-      <div class="plan">
-        <h3>Pro</h3>
-        <div class="muted">For enterprises and institutions</div>
-        <div class="price"><strong>$99.99</strong><span class="muted"> / month</span></div>
-        <ul>
-          <li>Everything in Plus</li>
-          <li>Up to 15‑hop tracing</li>
-          <li>Monitoring + alerts</li>
-          <li>Full history + API access</li>
-          <li>Priority support</li>
-          <li>Custom compliance reports</li>
-        </ul>
-        <a href="/auth" class="btn">Go Pro</a>
+      <div id="result"></div>
+    </section>
+
+    <!-- (Optional) landing sections kept as-is -->
+    <section id="features" class="section">
+      <h2>Why Choose SEKURA?</h2>
+      <p class="lead">We help you stay compliant and protect your funds with real-time blacklist checks.</p>
+      <div class="features-grid">
+        <div class="feature"><div class="icon">🔎</div><h3>Instant Wallet Check</h3><p>Real‑time blacklist status in seconds.</p></div>
+        <div class="feature"><div class="icon">🛡️</div><h3>Blacklist Alerts</h3><p>Get notified when status changes.</p></div>
+        <div class="feature"><div class="icon">✅</div><h3>Simple to Use</h3><p>Paste an address, get results.</p></div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Footer -->
-  <section class="section" id="contact">
+    <section id="plans" class="section">
+      <h2>Choose Your Protection Level</h2>
+      <p class="lead">Start free and upgrade as your needs grow.</p>
+      <div class="plans">
+        <div class="plan">
+          <h3>Free</h3>
+          <div class="price">$0 <small>/forever</small></div>
+          <ul>
+            <li>Single wallet check</li>
+            <li>Basic blacklist status</li>
+            <li>1-hop transaction trace</li>
+          </ul>
+          <a href="#!" class="btn">Start Free</a>
+        </div>
+        <div class="plan">
+          <h3>Plus</h3>
+          <div class="price">$49.99 <small>/month</small></div>
+          <ul>
+            <li>Everything in Free</li>
+            <li>Up to 5 hops</li>
+            <li>Export compliance reports</li>
+          </ul>
+          <a href="#!" class="btn primary">Upgrade to Plus</a>
+        </div>
+        <div class="plan">
+          <h3>Pro</h3>
+          <div class="price">$99.99 <small>/month</small></div>
+          <ul>
+            <li>Everything in Plus</li>
+            <li>Up to 15 hops</li>
+            <li>API access & priority support</li>
+          </ul>
+          <a href="#!" class="btn primary">Go Pro</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="container footer" id="contact">
+    <div>© 2025 SEKURA</div>
     <div class="footer-cols">
       <div>
-        <div class="logo"><img src="/logo.svg" alt=""/><span>SEKURA</span></div>
-        <p class="muted">Protect your funds with real‑time blacklist verification across networks.</p>
+        <h4>SEKURA</h4>
+        <p class="muted">Protect your funds with real‑time blacklist checks for USDT.</p>
       </div>
       <div>
         <h4>Product</h4>
         <a class="link" href="#features">Features</a><br/>
-        <a class="link" href="#plans">Pricing</a><br/>
-        <a class="link" href="/auth">API Access</a><br/>
-      </div>
-      <div>
-        <h4>Company</h4>
-        <a class="link" href="#contact">Contact</a><br/>
-        <a class="link" href="#">Enterprise</a><br/>
+        <a class="link" href="#plans">Pricing</a>
       </div>
       <div>
         <h4>Legal</h4>
-        <a class="link" href="#">Privacy Policy</a><br/>
-        <a class="link" href="#">Terms of Service</a><br/>
-        <a class="link" href="#">Disclaimer</a>
+        <a class="link" href="#!">Privacy Policy</a><br/>
+        <a class="link" href="#!">Terms of Service</a>
+      </div>
+      <div>
+        <h4>Support</h4>
+        <a class="link" href="#!">Contact</a>
       </div>
     </div>
-  </section>
-</main>
+  </footer>
 
-<footer class="container footer">
-  <div>© 2024 SEKURA. Ensuring crypto compliance, one address at a time.</div>
-  <div class="muted">Not affiliated with Tether, Tron, Ethereum, or any blockchain protocol.</div>
-</footer>
-
-<!-- Paywall Modal -->
-<div class="modal-backdrop" id="paywall">
-  <div class="modal">
-    <h3>Premium Feature</h3>
-    <p class="muted">
-      This is a premium feature only available for registered users.
-      Sign Up today to get access to this and many other premium features.
-    </p>
-    <div class="row">
-      <a href="#plans" class="btn">View Plans</a>
-      <a href="/auth" class="btn primary">Upgrade Now</a>
+  <div id="paywall" class="modal-backdrop">
+    <div class="modal">
+      <h3>Premium Feature</h3>
+      <p>This is a premium feature only available for registered users. Sign Up today to access this and more.</p>
+      <div class="row">
+        <button class="btn" id="closePaywall">Close</button>
+        <a href="#plans" class="btn primary">Upgrade Now</a>
+      </div>
     </div>
   </div>
-</div>
 
-<script src="/app.js" type="module"></script>
+  <script src="/app.js"></script>
 </body>
 </html>
-
