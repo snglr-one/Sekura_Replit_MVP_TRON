@@ -55,6 +55,8 @@ async function callUint(selector, owner, contract, addr){
   if (!r) return 0n;
   return BigInt("0x" + r);
 }
+
+// ✅ FIXED: safe fallback for decimals
 async function getDecimals(){
   try{
     const { data } = await axios.post(
@@ -62,10 +64,13 @@ async function getDecimals(){
       { owner_address: "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb", contract_address: USDT, function_selector: "decimals()", visible: true },
       { headers: { "Content-Type": "application/json", ...tronHeaders } }
     );
-    const r = data?.constant_result?.[0] || "000...006";
-    return Number(BigInt("0x" + r));
-  } catch { return 6; }
+    const r = data?.constant_result?.[0];
+    return r ? Number(BigInt("0x" + r)) : 6;
+  } catch {
+    return 6;
+  }
 }
+
 async function getAccount(address){
   const { data } = await axios.get(`${TRONGRID_API}/v1/accounts/${address}`, { headers: tronHeaders });
   return data?.data?.[0] || null;
@@ -133,7 +138,7 @@ app.get("/api/wallet/:address/summary", async (req,res)=>{
 
 // Pages
 app.get("/", (req,res)=> res.sendFile(path.join(__dirname,"public","index.html")));
-app.get("/pricing", (req,res)=> res.sendFile(path.join(__dirname,"public","pricing.html"))); // optional
+app.get("/pricing", (req,res)=> res.sendFile(path.join(__dirname,"public","pricing.html")));
 app.get("/auth", (req,res)=> res.sendFile(path.join(__dirname,"public","auth.html")));
 app.get("/app", (req,res)=> res.sendFile(path.join(__dirname,"public","dashboard.html")));
 
