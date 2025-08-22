@@ -1,80 +1,35 @@
 <!doctype html>
 <html lang="en" data-theme="light">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>SEKURA — Pricing</title>
-  <link rel="icon" href="/logo.svg" />
-  <link rel="stylesheet" href="/styles.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="/logo.svg"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 <header class="container header">
   <div class="logo"><img src="/logo.svg" alt=""/><span>SEKURA</span></div>
   <nav class="nav">
     <a href="/">Home</a>
-    <a href="/pricing">Plans</a>
+    <a href="/#plans">Plans</a>
     <a href="/auth">Sign In</a>
+    <div class="lang"><span class="flag"><img src="/flags/us.svg" width="20" height="14" alt="US"/></span><span>English</span></div>
     <div class="theme-toggle" id="themeToggle"><button data-mode="dark" class="active">🌙 Dark</button><button data-mode="light">☀️ Light</button></div>
   </nav>
 </header>
 
-<main class="container">
-  <h1 style="text-align:center;margin-top:20px;">Choose Your Protection Level</h1>
-  <p class="sub" style="text-align:center;">Start free and upgrade as your needs grow.</p>
-
-  <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 24px;">
-    <div class="card">
-      <h3>Free</h3>
-      <div class="muted">Perfect for occasional checks</div>
-      <div class="price"><strong>$0</strong> <span class="muted">/ forever</span></div>
-      <ul class="muted">
-        <li>Single wallet address check</li>
-        <li>Basic blacklist status</li>
-        <li>1‑hop transaction trace</li>
-        <li>TRC‑20 support</li>
-      </ul>
-      <button class="btn primary" disabled>Start Free</button>
-    </div>
-
-    <div class="card">
-      <h3>Plus</h3>
-      <div class="muted">Great for traders and businesses</div>
-      <div class="price"><strong>$49.99</strong> <span class="muted">/ month</span></div>
-      <ul class="muted">
-        <li>Everything in Free</li>
-        <li>Up to 5‑hop transaction tracing</li>
-        <li>Detailed risk analysis</li>
-        <li>Export compliance reports</li>
-        <li>Email support</li>
-        <li>Batch address checking</li>
-      </ul>
-      <a href="/auth" class="btn primary">Upgrade to Plus</a>
-    </div>
-
-    <div class="card">
-      <h3>Pro</h3>
-      <div class="muted">For enterprises and institutions</div>
-      <div class="price"><strong>$99.99</strong> <span class="muted">/ month</span></div>
-      <ul class="muted">
-        <li>Everything in Plus</li>
-        <li>Up to 15‑hop tracing</li>
-        <li>Monitoring + alerts</li>
-        <li>Full history + API access</li>
-        <li>Priority support</li>
-        <li>Custom compliance reports</li>
-      </ul>
-      <a href="/auth" class="btn">Go Pro</a>
-    </div>
+<main class="container section">
+  <h2>Choose Your Protection Level</h2>
+  <p class="lead">Same plans as on the landing page section.</p>
+  <div class="plans">
+    <div class="plan"><h3>Free</h3><div class="muted">Perfect for occasional checks</div><div class="price"><strong>$0</strong><span class="muted"> / forever</span></div><ul><li>Single wallet address check</li><li>Basic blacklist status</li><li>1‑hop transaction trace</li><li>TRC‑20 support</li></ul><a href="/auth" class="btn primary">Start Free</a></div>
+    <div class="plan"><h3>Plus</h3><div class="muted">Great for traders and businesses</div><div class="price"><strong>$49.99</strong><span class="muted"> / month</span></div><ul><li>Everything in Free</li><li>Up to 5‑hop transaction tracing</li><li>Detailed risk analysis</li><li>Export compliance reports</li><li>Email support</li><li>Batch address checking</li></ul><a href="/auth" class="btn primary">Upgrade to Plus</a></div>
+    <div class="plan"><h3>Pro</h3><div class="muted">For enterprises and institutions</div><div class="price"><strong>$99.99</strong><span class="muted"> / month</span></div><ul><li>Everything in Plus</li><li>Up to 15‑hop tracing</li><li>Monitoring + alerts</li><li>Full history + API access</li><li>Priority support</li><li>Custom compliance reports</li></ul><a href="/auth" class="btn">Go Pro</a></div>
   </div>
 </main>
-
-<footer class="container footer">
-  <div>© SEKURA</div>
-  <div class="muted">Stripe integration coming in v2</div>
-</footer>
 
 <script src="/app.js" type="module"></script>
 </body>
 </html>
-
