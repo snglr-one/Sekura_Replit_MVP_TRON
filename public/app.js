@@ -16,34 +16,42 @@ const paywall = document.getElementById('paywall');
 document.getElementById('closePaywall')?.addEventListener('click', ()=> paywall.style.display='none');
 const openPaywall = ()=> { paywall.style.display='flex'; };
 
-/* -------- Robust API call with clear errors & route fallback -------- */
+/* -------- Robust API call with GET/POST + route fallbacks -------- */
 async function checkAddress(addr){
-  const tryFetch = async (url) => {
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    const text = await res.text();            // read raw to show body on errors
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ${res.statusText} — ${text || 'no body'}`);
-    }
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new Error(`Unexpected response (not JSON): ${text.slice(0,200)}`);
-    }
-  };
+  const tries = [
+    { method:'GET',  url:`/api/check?address=${encodeURIComponent(addr)}` },
+    { method:'POST', url:'/api/check', body:{ address: addr } },
+    { method:'GET',  url:`/check?address=${encodeURIComponent(addr)}` },
+    { method:'POST', url:'/check', body:{ address: addr } },
+  ];
 
-  const q = encodeURIComponent(addr);
-  // Try /api/check first, then /check (covers both server setups)
-  try {
-    return await tryFetch(`/api/check?address=${q}`);
-  } catch (e1) {
-    // Fallback route
+  let lastErr = null;
+
+  for (const t of tries) {
     try {
-      return await tryFetch(`/check?address=${q}`);
-    } catch (e2) {
-      // surface the clearer of the two errors
-      throw new Error(e2?.message || e1?.message || 'Unknown API error');
+      const opts = { headers: { 'Accept': 'application/json' } };
+      if (t.method === 'POST') {
+        opts.method = 'POST';
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(t.body);
+      } else {
+        opts.method = 'GET';
+      }
+      const res = await fetch(t.url, opts);
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} — ${text || 'no body'}`);
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error(`Unexpected response (not JSON) from ${t.method} ${t.url}: ${text.slice(0,200)}`);
+      }
+    } catch (e) {
+      lastErr = e;
+      // Continue to next pattern
     }
   }
+
+  throw new Error(lastErr?.message || 'Unknown API error');
 }
 
 /* Helpers */
@@ -68,7 +76,7 @@ function statusMessage(status){
   return '✅ This wallet is Safe to interact with, however, it might not in the future. Protect yourself by upgrading and getting weekly alerts.';
 }
 
-/* Render Result Card (matches your screenshot + centered wide pill) */
+/* Render Result Card (your layout + centered wide pill) */
 function renderCard(data){
   const { status, riskScore, reason, isBlacklisted, blacklistTimestamp,
           address, network='TRON', totalUsd=0,
@@ -177,7 +185,6 @@ document.getElementById('checkBtn')?.addEventListener('click', async ()=>{
     document.getElementById('saveReport')?.addEventListener('click', openPaywall);
     document.getElementById('exportReport')?.addEventListener('click', openPaywall);
   }catch(e){
-    // Show the precise reason now (status + body)
     resultEl.innerHTML = `<div class="card"><div class="error">Error: ${e.message}</div></div>`;
   }
 });
