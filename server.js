@@ -12,6 +12,9 @@ const __dirname  = dirname(__filename);
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`SEKURA server running on http://localhost:${PORT}`);
+});
 
 // TronGrid setup
 const TRONGRID         = process.env.TRONGRID_BASE || "https://api.trongrid.io";
