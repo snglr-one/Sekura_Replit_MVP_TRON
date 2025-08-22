@@ -1,207 +1,141 @@
-// server.js — SEKURA MVP (stable restore)
-// ESM syntax; works with "type": "module" in package.json
-
+// SEKURA – MVP (TRON) - Server
 import express from "express";
-import path, { dirname } from "path";
-import TronWeb from "tronweb";
-import fetch from "node-fetch"; // v2
+import axios from "axios";
+import cors from "cors";
+import path from "path";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+import TronWeb from "tronweb";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
-const app  = express();
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`SEKURA server running on http://localhost:${PORT}`);
-});
-
-// TronGrid setup
-const TRONGRID         = process.env.TRONGRID_BASE || "https://api.trongrid.io";
-const TRONGRID_API_KEY = process.env.TRONGRID_API_KEY || "";
-const USDT_CONTRACT    = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
-
-// Middleware
+const app = express();
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// CORS (simple, permissive)
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  next();
-});
-
-// Serve the front-end
 app.use(express.static(path.join(__dirname, "public")));
 
+const TRONGRID_API = process.env.TRONGRID_API || "https://api.trongrid.io";
+const TRONGRID_API_KEY = process.env.TRONGRID_API_KEY || "";
+const tronHeaders = TRONGRID_API_KEY ? { "TRON-PRO-API-KEY": TRONGRID_API_KEY } : {};
+
+const tronWeb = new TronWeb({ fullHost: TRONGRID_API, headers: tronHeaders });
+const USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+
 // Helpers
-const isLikelyTron = (s) => typeof s === "string" && /^T[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(s);
+function isTronBase58(addr){ return typeof addr === "string" && addr.startsWith("T") && addr.length >= 26 && addr.length <= 36; }
+function to20ByteHexFromBase58(addr){
+  const hexWith41 = tronWeb.address.toHex(addr);
+  if (!hexWith41 || !hexWith41.startsWith("41") || hexWith41.length !== 42) throw new Error("Invalid TRON address");
+  return hexWith41.slice(2);
+}
+function pad64(hex){ return hex.padStart(64, "0"); }
 
-// Convert base58 to 32-byte hex (no 0x), padded to 64 chars for ABI
-function toHexAddressPadded(address) {
-  const hex41 = TronWeb.address.toHex(address); // "41" + 40 chars
-  if (!hex41 || !/^41[0-9a-fA-F]{40}$/.test(hex41)) {
-    throw new Error("Invalid TRON address");
-  }
-  return hex41.slice(2).toLowerCase().padStart(64, "0");
+async function triggerConstant({ contract, selector, paramHex64, ownerBase58 }){
+  const { data } = await axios.post(
+    `${TRONGRID_API}/wallet/triggerconstantcontract`,
+    { owner_address: ownerBase58, contract_address: contract, function_selector: selector, parameter: paramHex64, visible: true },
+    { headers: { "Content-Type": "application/json", ...tronHeaders } }
+  );
+  return data;
+}
+async function callBool(selector, owner, contract, addr){
+  const a20 = to20ByteHexFromBase58(addr);
+  const out = await triggerConstant({ contract, selector, paramHex64: pad64(a20), ownerBase58: owner });
+  const r = out?.constant_result?.[0] || "";
+  if (!r) return null;
+  return r.endsWith("1");
+}
+async function callUint(selector, owner, contract, addr){
+  const a20 = to20ByteHexFromBase58(addr);
+  const out = await triggerConstant({ contract, selector, paramHex64: pad64(a20), ownerBase58: owner });
+  const r = out?.constant_result?.[0] || "";
+  if (!r) return 0n;
+  return BigInt("0x" + r);
+}
+async function getDecimals(){
+  try{
+    const { data } = await axios.post(
+      `${TRONGRID_API}/wallet/triggerconstantcontract`,
+      { owner_address: "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb", contract_address: USDT, function_selector: "decimals()", visible: true },
+      { headers: { "Content-Type": "application/json", ...tronHeaders } }
+    );
+    const r = data?.constant_result?.[0] || "000...006";
+    return Number(BigInt("0x" + r));
+  } catch { return 6; }
+}
+async function getAccount(address){
+  const { data } = await axios.get(`${TRONGRID_API}/v1/accounts/${address}`, { headers: tronHeaders });
+  return data?.data?.[0] || null;
+}
+async function getRecentTRC20(address, limit=10){
+  const url = `${TRONGRID_API}/v1/accounts/${address}/transactions/trc20?limit=${limit}&contract_address=${USDT}&order_by=block_timestamp,desc`;
+  const { data } = await axios.get(url, { headers: tronHeaders });
+  return data?.data || [];
 }
 
-// Call USDT.isBlackListed(address)
-async function isBlacklisted(address) {
-  const parameter = toHexAddressPadded(address);
-  const payload = {
-    owner_address: address,             // base58 ok with visible=true
-    contract_address: USDT_CONTRACT,    // base58 ok with visible=true
-    function_selector: "isBlackListed(address)",
-    parameter,
-    visible: true
-  };
+// API
+app.get("/api/health", (req,res)=> res.json({ ok:true, TRONGRID_API, usdt_contract: USDT }));
 
-  const res = await fetch(`${TRONGRID}/wallet/triggerconstantcontract`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(TRONGRID_API_KEY ? { "TRON-PRO-API-KEY": TRONGRID_API_KEY } : {})
-    },
-    body: JSON.stringify(payload)
-  });
-  const j = await res.json();
+app.get("/api/wallet/:address/summary", async (req,res)=>{
+  try{
+    const address = req.params.address.trim();
+    if(!isTronBase58(address)) return res.status(400).json({ error: "Invalid TRON address (must start with T)" });
 
-  if (!j || !j.result) throw new Error(`USDT call failed: ${JSON.stringify(j)}`);
-  if (j.result.message && j.result.message.includes("REVERT")) {
-    throw new Error(`Contract REVERT: ${j.result.message}`);
-  }
-  const out = (j.constant_result || [])[0] || "0".repeat(64);
-  const hex = out.replace(/^0x/, "").toLowerCase();
-  return hex.endsWith("1"); // bool packed in last byte
-}
+    let blacklisted = await callBool("isBlackListed(address)", address, USDT, address);
+    if (blacklisted === null) blacklisted = await callBool("getBlackListStatus(address)", address, USDT, address);
 
-// Basic account snapshot (TRX + USDT)
-async function getAccountSnapshot(address) {
-  const res = await fetch(`${TRONGRID}/v1/accounts/${address}`, {
-    headers: {
-      "Accept": "application/json",
-      ...(TRONGRID_API_KEY ? { "TRON-PRO-API-KEY": TRONGRID_API_KEY } : {})
+    const decimals = await getDecimals();
+    const raw = await callUint("balanceOf(address)", address, USDT, address);
+    const usdtBalance = Number(raw) / 10 ** decimals;
+
+    const acct = await getAccount(address);
+    const createdAt = acct?.create_time || null;
+    const trxSun = acct?.balance || 0;
+    const trxBalance = Number(trxSun) / 1e6;
+
+    const recent = await getRecentTRC20(address, 10);
+
+    let status = "Safe", riskScore = 5;
+    const reasons = [];
+    if (blacklisted) {
+      status = "Blacklisted"; riskScore = 100;
+      reasons.push("USDT contract reports this address is blacklisted");
+    } else if (usdtBalance > 0 && recent.length >= 10) {
+      status = "Needs Review"; riskScore = 60;
+      reasons.push("Frequent recent USDT transfers suggest elevated risk");
+    } else {
+      reasons.push("No blacklist flags detected; low recent activity");
     }
-  });
-  const j = await res.json();
-  if (!j?.success || !j?.data?.length) return { createdAt: null, balances: [] };
 
-  const a = j.data[0];
-  const balances = [];
-
-  if (typeof a.balance === "number") {
-    balances.push({ symbol: "TRX", name: "TRON", balance: a.balance / 1e6, usd: null, tokenType: "TRC10" });
-  }
-  if (Array.isArray(a.trc20)) {
-    for (const entry of a.trc20) {
-      const k = Object.keys(entry)[0];
-      if (k === USDT_CONTRACT) {
-        const amt = Number(entry[k]) / 1e6;
-        balances.push({ symbol: "USDT", name: "Tether USD", balance: amt, usd: amt, tokenType: "TRC20" });
-      }
-    }
-  }
-
-  return { createdAt: a.create_time || null, balances };
-}
-
-// Minimal recent USDT transfers
-async function getRecentUsdtTransfers(address, limit = 5) {
-  const url = `${TRONGRID}/v1/contracts/${USDT_CONTRACT}/events?event_name=Transfer&only_confirmed=true&limit=${limit}&sort=-block_timestamp`;
-  const res = await fetch(url, {
-    headers: {
-      "Accept": "application/json",
-      ...(TRONGRID_API_KEY ? { "TRON-PRO-API-KEY": TRONGRID_API_KEY } : {})
-    }
-  });
-  const j = await res.json();
-  if (!j?.success) return [];
-
-  const out = [];
-  for (const ev of j.data || []) {
-    const to   = ev.result?.to || "";
-    const from = ev.result?.from || "";
-    // simple match (we don’t expand base58->hex here for speed; works for demo)
-    if (!to.includes(address.slice(1, 8)) && !from.includes(address.slice(1, 8))) continue;
-
-    out.push({
-      time: ev.block_timestamp || null,
-      dir: to.includes(address.slice(1, 8)) ? "in" : "out",
-      token: "USDT",
-      amount: ev.result?.value ? Number(ev.result.value) / 1e6 : null,
-      hash: ev.transaction_id || ""
+    res.json({
+      address,
+      network: "TRON",
+      status,
+      risk: { score: riskScore, reasons },
+      totals: { usd: usdtBalance },
+      tokens: [
+        { symbol: "USDT", name: "Tether USD", contract: USDT, decimals, balance: usdtBalance, usd: usdtBalance },
+        { symbol: "TRX", name: "TRON", contract: "_", decimals: 6, balance: trxBalance, usd: null }
+      ],
+      blacklisted,
+      blacklist_timestamp: null,
+      transactions: { trc20_recent: recent, count_returned: recent.length },
+      meta: { created_at: createdAt, source: "TronGrid" }
     });
+  }catch(e){
+    console.error("summary error", e?.response?.data || e.message);
+    res.status(500).json({ error: "Failed wallet summary", details: e?.response?.data || e.message });
   }
-  return out.slice(0, limit);
-}
-
-// Build response used by the front-end card
-async function buildResult(address) {
-  const blacklisted = await isBlacklisted(address);
-  const account     = await getAccountSnapshot(address);
-  const txs         = await getRecentUsdtTransfers(address, 5);
-
-  const usdt = account.balances.find(b => b.symbol === "USDT");
-  const trx  = account.balances.find(b => b.symbol === "TRX");
-  const totalUsd = usdt?.usd || 0;
-
-  let risk = blacklisted ? 100 : 0;
-  if (!blacklisted && txs.length) risk = Math.min(40 + txs.length * 5, 70);
-
-  const status = blacklisted ? "Blacklisted" : (risk >= 60 ? "Needs Review" : "Safe");
-
-  return {
-    status,
-    riskScore: risk,
-    isBlacklisted: blacklisted,
-    reason: blacklisted ? "USDT contract reports this address is blacklisted" : "",
-    blacklistTimestamp: null,
-    address,
-    network: "TRON",
-    totalUsd,
-    createdAt: account.createdAt,
-    recentUsdtTransfers: txs.length,
-    tokenBalances: [
-      ...(usdt ? [usdt] : []),
-      ...(trx  ? [trx]  : [])
-    ],
-    recentTrc20: txs
-  };
-}
-
-// Shared handler
-async function handleCheck(req, res) {
-  try {
-    const address = req.method === "GET"
-      ? (req.query.address || "")
-      : (req.body?.address || "");
-
-    if (!isLikelyTron(address)) {
-      return res.status(400).json({ error: "Invalid TRON address" });
-    }
-    const result = await buildResult(address);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err?.message || String(err) });
-  }
-}
-
-// Support both old/new routes + methods
-app.get("/check", handleCheck);
-app.post("/check", handleCheck);
-app.get("/api/check", handleCheck);
-app.post("/api/check", handleCheck);
-
-app.get("/health", (req, res) => res.json({ ok: true }));
-
-// Fallback to index.html
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`SEKURA server running on http://localhost:${PORT}`);
-  console.log(`TRON_API: ${TRONGRID}`);
-});
+// Pages
+app.get("/", (req,res)=> res.sendFile(path.join(__dirname,"public","index.html")));
+app.get("/pricing", (req,res)=> res.sendFile(path.join(__dirname,"public","pricing.html"))); // optional
+app.get("/auth", (req,res)=> res.sendFile(path.join(__dirname,"public","auth.html")));
+app.get("/app", (req,res)=> res.sendFile(path.join(__dirname,"public","dashboard.html")));
+
+const PORT = Number(process.env.PORT) || 3000;
+app.listen(PORT,"0.0.0.0",()=> console.log(`SEKURA running on http://localhost:${PORT}`));
