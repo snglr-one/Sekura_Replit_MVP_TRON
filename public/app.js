@@ -30,7 +30,6 @@ function statusBadge(status){
 }
 function ringColor(status){
   if(status==="Blacklisted") return "var(--red)";
-  if(status==="Needs Review)") return "var(--yellow)";
   if(status==="Needs Review") return "var(--yellow)";
   return "var(--green)";
 }
@@ -88,7 +87,6 @@ function renderCard(d){
   resultEl.innerHTML = `
     <div class="card">
       <div class="card-head">
-        <!-- left: status centered below -->
         ${riskRing(d.risk?.score ?? 0, d.status)}
       </div>
 
@@ -142,7 +140,6 @@ async function runCheck(){
     if(!res.ok){ const msg = await res.json().catch(()=>({})); throw new Error(msg?.error || "Request failed"); }
     const data = await res.json();
     renderCard(data);
-    // Smoothly scroll result into view
     setTimeout(()=>{ resultEl?.scrollIntoView({behavior:"smooth", block:"start"}); }, 50);
   }catch(e){ showErr(e.message || "Something went wrong"); }
 }
