@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 3:2 aspect; compact but accurate stripes/canton/star rows -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 741 494">
+  <!-- Background (red) -->
+  <rect width="741" height="494" fill="#B22234"/>
+  <!-- White stripes -->
+  <g fill="#FFF">
+    <rect y="38"  width="741" height="38"/>
+    <rect y="114" width="741" height="38"/>
+    <rect y="190" width="741" height="38"/>
+    <rect y="266" width="741" height="38"/>
+    <rect y="342" width="741" height="38"/>
+    <rect y="418" width="741" height="38"/>
+  </g>
+  <!-- Canton -->
+  <rect width="296.4" height="266" fill="#3C3B6E"/>
+  <!-- Stars (9 rows: 6/5/6/5/6/5/6/5/6) -->
+  <g fill="#FFF" transform="translate(14,14)">
+    <g id="s">
+      <!-- 5-point star sized for the canton -->
+      <path d="M0,-8.4 L2.5,-2.6 L8.0,-2.6 L3.2,0.9 L4.9,6.4 L0,3.3 L-4.9,6.4 L-3.2,0.9 L-8.0,-2.6 L-2.5,-2.6 Z"/>
+    </g>
+    <!-- Row spacing / column spacing tuned to look correct at small sizes -->
+    <g id="row6">
+      <use href="#s" x="0"   y="0"/>
+      <use href="#s" x="24"  y="0"/>
+      <use href="#s" x="48"  y="0"/>
+      <use href="#s" x="72"  y="0"/>
+      <use href="#s" x="96"  y="0"/>
+      <use href="#s" x="120" y="0"/>
+    </g>
+    <g id="row5">
+      <use href="#s" x="12"  y="0"/>
+      <use href="#s" x="36"  y="0"/>
+      <use href="#s" x="60"  y="0"/>
+      <use href="#s" x="84"  y="0"/>
+      <use href="#s" x="108" y="0"/>
+    </g>
+
+    <!-- Build all 9 rows -->
+    <g transform="scale(2.4)">
+      <use href="#row6" y="0"/>
+      <use href="#row5" y="6"/>
+      <use href="#row6" y="12"/>
+      <use href="#row5" y="18"/>
+      <use href="#row6" y="24"/>
+      <use href="#row5" y="30"/>
+      <use href="#row6" y="36"/>
+      <use href="#row5" y="42"/>
+      <use href="#row6" y="48"/>
+    </g>
+  </g>
+</svg>
