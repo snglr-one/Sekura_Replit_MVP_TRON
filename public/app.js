@@ -1,78 +1,72 @@
 // Theme toggle
 const themeToggle = document.getElementById("themeToggle");
-function setTheme(mode) {
+function setTheme(mode){
   document.documentElement.setAttribute("data-theme", mode);
   localStorage.setItem("sekura-theme", mode);
-  if (!themeToggle) return;
-  [...themeToggle.querySelectorAll("button")].forEach(b => {
-    b.classList.toggle("active", b.dataset.mode === mode);
-  });
+  if(!themeToggle) return;
+  [...themeToggle.querySelectorAll("button")].forEach(b=>b.classList.toggle("active", b.dataset.mode === mode));
 }
-(function initTheme(){
-  const saved = localStorage.getItem("sekura-theme") || "light";
-  setTheme(saved);
-})();
-if (themeToggle) {
-  themeToggle.addEventListener("click", (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    setTheme(btn.dataset.mode);
-  });
-}
+(function(){ setTheme(localStorage.getItem("sekura-theme") || "light"); })();
+themeToggle?.addEventListener("click", e=>{ const b=e.target.closest("button"); if(b) setTheme(b.dataset.mode); });
 
 // Paywall modal
 const paywall = document.getElementById("paywall");
-function showPaywall(){ if (paywall) paywall.style.display = "flex"; }
-if (paywall){
-  document.getElementById("closePaywall")?.addEventListener("click", ()=> paywall.style.display="none");
-  paywall.addEventListener("click", (e)=> { if (e.target === paywall) paywall.style.display="none"; });
-}
+function showPaywall(){ if(paywall) paywall.style.display = "flex"; }
+document.getElementById("closePaywall")?.addEventListener("click", ()=> paywall.style.display = "none");
+paywall?.addEventListener("click", e=>{ if(e.target===paywall) paywall.style.display="none"; });
 
-// Shared selectors (present on landing & dashboard)
+// Shared elements
 const addrInput = document.getElementById("addr");
 const checkBtn  = document.getElementById("checkBtn");
-const result    = document.getElementById("result");
+const resultEl  = document.getElementById("result");
 const errEl     = document.getElementById("error");
 
-function showErr(msg){
-  if (!errEl) return;
-  errEl.textContent = msg;
-  errEl.classList.remove("hidden");
-}
-function clearErr(){
-  if (!errEl) return;
-  errEl.classList.add("hidden");
-  errEl.textContent = "";
-}
+function showErr(msg){ if(!errEl) return; errEl.textContent = msg; errEl.classList.remove("hidden"); }
+function clearErr(){ if(!errEl) return; errEl.classList.add("hidden"); errEl.textContent = ""; }
 
-function statusBadge(status) {
-  const map = { "Safe":"badge green", "Needs Review":"badge yellow", "Blacklisted":"badge red" };
-  return `<span class="${map[status]||"badge"}">${status}</span>`;
+function statusBadge(status){
+  const cls = status==="Blacklisted"?"red":status==="Needs Review"?"yellow":"green";
+  return `<span class="badge ${cls}">${status}</span>`;
 }
-
-function riskRing(score) {
+function ringColor(status){
+  if(status==="Blacklisted") return "var(--red)";
+  if(status==="Needs Review)") return "var(--yellow)";
+  if(status==="Needs Review") return "var(--yellow)";
+  return "var(--green)";
+}
+function riskRing(score, status){
   const pct = Math.max(0, Math.min(100, Number(score||0)));
   const deg = Math.round((pct/100)*360);
-  return `<div class="score"><div class="ring" style="background: conic-gradient(var(--brand-2) ${deg}deg, transparent ${deg}deg);"><span>${pct}</span></div><div class="muted" style="text-align:center;">Risk</div></div>`;
+  const col = status==="Blacklisted" ? "var(--red)" : status==="Needs Review" ? "var(--yellow)" : "var(--green)";
+  return `
+  <div class="score">
+    <div class="ring" style="background: conic-gradient(${col} ${deg}deg, transparent ${deg}deg);">
+      <span>${pct}</span>
+    </div>
+    <div class="label">Risk</div>
+  </div>`;
 }
 
-function upgradeCTA(text) {
-  return `
-  <div class="upgrade">
-    <p>${text}</p>
-    <button class="btn primary" onclick="showPaywall()">Upgrade Now</button>
+// New copy blocks
+function resultCopy(status){
+  if(status==="Blacklisted"){
+    return `🚨 This wallet is blacklisted! The full report reveals which contaminated wallets caused this. Unlock the full investigation in a Paid Plan.`;
+  }
+  if(status==="Needs Review"){
+    return `⚠️ This wallet has suspicious activity. Prevent getting Blacklisted by Upgrading and getting tailored recommendations on how to stay compliant.`;
+  }
+  return `✅ This wallet is Safe to interact with, however, it might not in the future. Protect yourself by upgrading and getting weekly alerts.`;
+}
+
+function upgradeBlock(){
+  return `<div class="upgrade">
+    <div class="muted" style="margin-bottom:8px">Upgrade to access full reports, history, exports, and alerts.</div>
+    <a class="btn primary" href="#plans">Upgrade Now</a>
   </div>`;
 }
 
 function renderCard(d){
-  if(!result) return;
-
-  const statusNote =
-    d.status === "Safe"
-      ? `<p class="muted">This wallet appears safe to transact with.</p>`
-      : d.status === "Needs Review"
-      ? upgradeCTA("This wallet has suspicious activity. Get tailored recommendations on how to stay compliant by upgrading.")
-      : upgradeCTA("This wallet is blacklisted. Unlock the full investigation in the Paid Plan.");
+  if(!resultEl) return;
 
   const tokens = (d.tokens||[]).map(t=>`
     <tr>
@@ -80,30 +74,33 @@ function renderCard(d){
       <td class="muted">${t.name}</td>
       <td>${(t.balance??0).toLocaleString(undefined,{maximumFractionDigits:6})}</td>
       <td>${t.usd!=null ? `$${t.usd.toLocaleString(undefined,{maximumFractionDigits:2})}` : "—"}</td>
-    </tr>
-  `).join("");
+    </tr>`).join("");
 
   const txs = (d.transactions?.trc20_recent||[]).map(tx=>{
     const dir = tx.to === d.address ? "in" : (tx.from === d.address ? "out" : "other");
     const ts = tx.block_timestamp ? new Date(tx.block_timestamp).toLocaleString() : "—";
     const val = tx.value ? Number(tx.value)/(10**(tx.token_info?.decimals ?? 6)) : 0;
-    return `<tr>
-      <td>${ts}</td><td>${dir}</td><td>${tx.token_info?.symbol||"USDT"}</td>
-      <td>${val.toLocaleString(undefined,{maximumFractionDigits:6})}</td>
-      <td class="mono">${(tx.transaction_id||tx.txID||"").slice(0,8)}…</td>
-    </tr>`;
+    return `<tr><td>${ts}</td><td>${dir}</td><td>${tx.token_info?.symbol||"USDT"}</td><td>${val.toLocaleString(undefined,{maximumFractionDigits:6})}</td><td class="mono">${(tx.transaction_id||tx.txID||"").slice(0,8)}…</td></tr>`;
   }).join("");
 
   const created = d.meta?.created_at ? new Date(d.meta.created_at).toLocaleString() : "—";
 
-  result.innerHTML = `
+  resultEl.innerHTML = `
     <div class="card">
       <div class="card-head">
-        <h2>${statusBadge(d.status)} Wallet report</h2>
-        ${riskRing(d.risk?.score ?? 0)}
+        <!-- left: status centered below -->
+        ${riskRing(d.risk?.score ?? 0, d.status)}
       </div>
 
-      ${statusNote}
+      <div class="status-wrap">
+        ${statusBadge(d.status)}
+        <div class="status-title">${d.status}</div>
+      </div>
+
+      <div class="upgrade">
+        <p>${resultCopy(d.status)}</p>
+        <a class="btn primary" href="#plans">Upgrade Now</a>
+      </div>
 
       <div class="grid">
         <div><div class="label">Wallet Address</div><div class="mono">${d.address}</div></div>
@@ -133,28 +130,25 @@ function renderCard(d){
       </div>
     </div>
   `;
-  result.classList.remove("hidden");
+  resultEl.classList.remove("hidden");
 }
 
 async function runCheck(){
-  const address = addrInput.value.trim();
-  clearErr();
-  result?.classList.add("hidden");
-  result && (result.innerHTML = "");
-
-  if (!address || !address.startsWith("T")) { showErr("Please enter a valid TRON address (starts with T…)"); return; }
-  try {
+  const address = addrInput?.value.trim();
+  if(!address || !address.startsWith("T")){ showErr("Please enter a valid TRON address (starts with T…)"); return; }
+  clearErr(); resultEl?.classList.add("hidden"); if(resultEl) resultEl.innerHTML = "";
+  try{
     const res = await fetch(`/api/wallet/${address}/summary`);
-    if (!res.ok) {
-      const msg = await res.json().catch(()=>({}));
-      throw new Error(msg?.error || "Request failed");
-    }
+    if(!res.ok){ const msg = await res.json().catch(()=>({})); throw new Error(msg?.error || "Request failed"); }
     const data = await res.json();
     renderCard(data);
-  } catch (e) { showErr(e.message || "Something went wrong"); }
+    // Smoothly scroll result into view
+    setTimeout(()=>{ resultEl?.scrollIntoView({behavior:"smooth", block:"start"}); }, 50);
+  }catch(e){ showErr(e.message || "Something went wrong"); }
 }
 
-if (checkBtn && addrInput) {
-  checkBtn.addEventListener("click", runCheck);
-  addrInput.addEventListener("keydown", e => { if (e.key === "Enter") runCheck(); });
-}
+checkBtn?.addEventListener("click", runCheck);
+addrInput?.addEventListener("keydown", e=>{ if(e.key==="Enter") runCheck(); });
+
+// Expose for sidebar buttons in dashboard
+window.showPaywall = showPaywall;
